@@ -62,6 +62,12 @@
       android:entryValues="@array/caller_screen_style_values"
       app:iconSpaceReserved="false"/>
 
+  <Preference
+      android:key="custom_call_background"
+      android:title="@string/custom_call_background_title"
+      android:summary="@string/custom_call_background_summary"
+      app:iconSpaceReserved="false"/>
+
   <SwitchPreferenceCompat
       android:key="rounded_call_screen_controls"
       android:title="@string/rounded_call_screen_controls_title"

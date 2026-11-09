@@ -244,4 +244,12 @@
     <string name="expressive_speed_dial_contacts_unavailable">Contacts are unavailable. Enter a number to save a shortcut.</string>
     <string name="expressive_speed_dial_use_number">Save number</string>
     <string name="expressive_speed_dial_unassigned_key">Shortcut %1$d is not set up yet. Set it up in Speed dial.</string>
+    <string name="custom_call_background_title">Call screen background</string>
+    <string name="custom_call_background_summary">Choose an image or GIF from device storage</string>
+    <string name="custom_call_background_active_summary">Custom background is active. Tap to change or remove.</string>
+    <string name="custom_call_background_choose_new">Choose image or GIF</string>
+    <string name="custom_call_background_remove">Remove custom background</string>
+    <string name="custom_call_background_set_success">Call screen background set</string>
+    <string name="custom_call_background_set_failed">Couldn’t set call screen background</string>
+    <string name="custom_call_background_removed">Call screen background removed</string>
 </resources>

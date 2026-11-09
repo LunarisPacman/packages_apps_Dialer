@@ -177,12 +177,13 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         val number = if (primaryInfoState.numberPresentation() == android.provider.CallLog.Calls.PRESENTATION_ALLOWED)
             primaryInfoState.number().orEmpty() else ""
         val callerStyle = rememberCallerScreenStyle()
+        val customBackgroundFile = rememberCustomCallBackgroundFile()
         val hyperOs = callerStyle == CALLER_STYLE_HYPEROS
         val oneUi9 = callerStyle == CALLER_STYLE_ONEUI9
         val colorOs17 = callerStyle == CALLER_STYLE_COLOROS17
         val roundedControls = rememberRoundedCallControls()
         LaunchedEffect(roundedControls) { view?.let { ViewCompat.requestApplyInsets(it) } }
-        val fullScreenCaller = callerStyle == CALLER_STYLE_FULLSCREEN || hyperOs || oneUi9 || colorOs17
+        val fullScreenCaller = callerStyle == CALLER_STYLE_FULLSCREEN || hyperOs || oneUi9 || colorOs17 || customBackgroundFile != null
         val callerSpamWarning = rememberCallerSpamWarning()
         val callerPhoto = rememberCallerPhoto(number, maxSize = if (fullScreenCaller) 1600 else 512)
         val contactPhoto = remember(primaryInfoState.photo(), primaryInfoState.photoType(), number) {
@@ -193,6 +194,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         val fallbackPhotoResId = primaryInfoState.fallbackPhotoResId()
         val glassBackdrop = rememberDialerGlassBackdrop()
         val callerForeground = when {
+            customBackgroundFile != null -> Color.White
             oneUi9 || colorOs17 -> Color.White
             hyperOs -> rememberHyperOsForeground(photo, fallbackPhotoResId != 0)
             else -> MaterialTheme.colorScheme.onSurface
@@ -200,7 +202,16 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = callerForeground) {
             Box(Modifier.fillMaxSize()) {
-                if (colorOs17) ColorOsCallerBackground(
+                if (customBackgroundFile != null) {
+                    CustomCallBackground(
+                        file = customBackgroundFile,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (colorOs17 || oneUi9) Modifier.dialerGlassSource(glassBackdrop) else Modifier
+                            )
+                    )
+                } else if (colorOs17) ColorOsCallerBackground(
                     photo,
                     Modifier.fillMaxSize().dialerGlassSource(glassBackdrop),
                     fallbackPhotoResId
@@ -263,20 +274,23 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 RoundedCallerAvatar(photo, Modifier.size(avatarSize), fallbackPhotoResId)
                                 Spacer(Modifier.height(if (compactIdentity) 12.dp else 20.dp))
                             } else {
-                                if (hyperOs) {
+                                if (customBackgroundFile != null) {
+                                    OneUiCallerAvatar(photo, Modifier.size(if (compactIdentity) 64.dp else 84.dp), fallbackPhotoResId)
+                                    Spacer(Modifier.height(14.dp))
+                                } else if (hyperOs) {
                                     HyperOsCallerAvatar(photo, Modifier.size(if (compactIdentity) 64.dp else 76.dp), fallbackPhotoResId)
                                     Spacer(Modifier.height(14.dp))
                                 } else if (oneUi9 || colorOs17) {
                                     OneUiCallerAvatar(photo, Modifier.size(if (compactIdentity) 64.dp else 84.dp), fallbackPhotoResId)
                                     Spacer(Modifier.height(14.dp))
                                 }
-                                CallerNameAndNumber(name, number, compactIdentity, hyperOs = hyperOs, oneUi9 = oneUi9, colorOs = colorOs17)
-                                if (hyperOs || oneUi9 || colorOs17) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
+                                CallerNameAndNumber(name, number, compactIdentity, hyperOs = hyperOs, oneUi9 = oneUi9 || customBackgroundFile != null, colorOs = colorOs17)
+                                if (hyperOs || oneUi9 || colorOs17 || customBackgroundFile != null) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
                                     Text(it, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge,
                                         color = LocalContentColor.current.copy(alpha = .76f))
                                 }
-                                Spacer(Modifier.height(if (hyperOs || oneUi9 || colorOs17) 10.dp else 16.dp))
-                                CallStatus(hyperOs || oneUi9 || colorOs17)
+                                Spacer(Modifier.height(if (hyperOs || oneUi9 || colorOs17 || customBackgroundFile != null) 10.dp else 16.dp))
+                                CallStatus(hyperOs || oneUi9 || colorOs17 || customBackgroundFile != null)
                             }
                             val spamStatus = primaryInfoState.carrierSpamStatus()
                             if (primaryInfoState.isSpam() || spamStatus == CarrierCallIdentity.SPAM_CONFIRMED)
@@ -287,11 +301,11 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 Text(stringResource(R.string.expressive_verified_caller), Modifier.padding(top = 8.dp), color = Color(0xFF16834B))
                             else if (primaryInfoState.callerVerificationStatus() == CarrierCallIdentity.VERIFICATION_UNVERIFIED)
                                 Text(stringResource(R.string.expressive_unverified_caller), Modifier.padding(top = 8.dp),
-                                    color = if (hyperOs || oneUi9 || colorOs17) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    color = if (hyperOs || oneUi9 || colorOs17 || customBackgroundFile != null) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
                             else if (spamStatus == CarrierCallIdentity.SPAM_NOT_SPAM)
                                 Text(stringResource(R.string.expressive_not_spam), Modifier.padding(top = 8.dp),
-                                    color = if (hyperOs || oneUi9 || colorOs17) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (!hyperOs && !oneUi9 && !colorOs17) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
+                                    color = if (hyperOs || oneUi9 || colorOs17 || customBackgroundFile != null) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (!hyperOs && !oneUi9 && !colorOs17 && customBackgroundFile == null) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
                                 Text(it, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium,
                                     color = LocalContentColor.current)
                             }
