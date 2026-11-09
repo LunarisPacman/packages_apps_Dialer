@@ -83,6 +83,13 @@
       android:defaultValue="false"
       app:iconSpaceReserved="false"/>
 
+  <SwitchPreferenceCompat
+      android:key="floating_bar_blur"
+      android:title="@string/floating_bar_blur_title"
+      android:summary="@string/floating_bar_blur_summary"
+      android:defaultValue="false"
+      app:iconSpaceReserved="false"/>
+
   <MultiSelectListPreference
       android:key="hidden_nav_items"
       android:title="@string/hidden_nav_items_title"

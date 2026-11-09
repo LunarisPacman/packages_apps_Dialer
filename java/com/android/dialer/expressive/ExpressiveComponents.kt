@@ -175,7 +175,8 @@ fun FloatingDialerBar(
     labels: List<String>,
     onSelect: (Int) -> Unit,
     compact: Boolean = false,
-    hiddenItems: Set<String> = emptySet()
+    hiddenItems: Set<String> = emptySet(),
+    glass: DialerGlassBackdrop? = null
 ) {
     val items = listOf(
         DialerNavItem(0, "recents", labels.getOrElse(0) { "" }, DialerSymbol.History),
@@ -186,10 +187,33 @@ fun FloatingDialerBar(
     )
     val visibleItems = items.filter { it.key !in hiddenItems && it.index.toString() !in hiddenItems }
     val haptic = LocalHapticFeedback.current
-    Surface(shape = RoundedCornerShape(32.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 0.dp, tonalElevation = 2.dp,
-        modifier = Modifier.widthIn(max = if (compact) 280.dp else 440.dp)
-            .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec())) {
+    val shape = RoundedCornerShape(32.dp)
+    Surface(
+        shape = shape,
+        color = if (glass != null) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 0.dp,
+        tonalElevation = if (glass != null) 0.dp else 2.dp,
+        border = if (glass != null) BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ) else null,
+        modifier = Modifier
+            .widthIn(max = if (compact) 280.dp else 440.dp)
+            .then(
+                if (glass != null) {
+                    Modifier.dialerGlass(
+                        backdrop = glass,
+                        shape = shape,
+                        tint = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f),
+                        highlight = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clip(shape)
+            .animateContentSize(MaterialTheme.motionScheme.defaultSpatialSpec())
+    ) {
         Row(Modifier.padding(6.dp).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically) {
             visibleItems.forEach { navItem ->

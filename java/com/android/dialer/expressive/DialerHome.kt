@@ -51,6 +51,7 @@ fun DialerHome(
     keypad: Boolean, compactFloatingBar: Boolean = false, hideKeyboardOnScroll: Boolean = true,
     groupContactsByName: Boolean = true, bottomDialpadBackspace: Boolean = true,
     hiddenNavItems: Set<String> = emptySet(),
+    floatingBarBlur: Boolean = false,
     onTab: (Int) -> Unit, onQuery: (String) -> Unit, onDigits: (String) -> String,
     onKeypad: (Boolean) -> Unit, onCall: (String) -> Unit, onVideo: (String) -> Unit, onVoicemail: () -> Unit,
     onPermissions: () -> Unit, onRetry: () -> Unit, onStar: (Person) -> Unit,
@@ -93,11 +94,19 @@ fun DialerHome(
     val recentContactMatches = remember(data.people, data.contactsAllowed, query, missedOnly) {
         if (query.isBlank() || missedOnly || !data.contactsAllowed) emptyList() else searchPeople(data.people, query)
     }
+    val glassBackdrop = rememberDialerGlassBackdrop()
     Scaffold(containerColor = MaterialTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             Box(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 16.dp, vertical = 12.dp), Alignment.Center) {
-                FloatingDialerBar(tab, labels, onTab, compactFloatingBar, hiddenNavItems)
+                FloatingDialerBar(
+                    selected = tab,
+                    labels = labels,
+                    onSelect = onTab,
+                    compact = compactFloatingBar,
+                    hiddenItems = hiddenNavItems,
+                    glass = glassBackdrop.takeIf { floatingBarBlur }
+                )
             }
         }, floatingActionButton = {
             ExpressiveTile(onClick = { onKeypad(true) }, modifier = Modifier.size(64.dp),
@@ -121,7 +130,22 @@ fun DialerHome(
                 }
             }
         }
-        Column(Modifier.padding(contentInsets).consumeWindowInsets(padding).fillMaxSize().widthIn(max = 840.dp)) {
+        Column(
+            Modifier
+                .padding(contentInsets)
+                .consumeWindowInsets(padding)
+                .fillMaxSize()
+                .widthIn(max = 840.dp)
+                .then(
+                    if (floatingBarBlur) {
+                        Modifier
+                            .dialerGlassSource(glassBackdrop)
+                            .background(MaterialTheme.colorScheme.surface)
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
             Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 12.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
