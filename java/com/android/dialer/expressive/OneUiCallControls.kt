@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class,
+)
+
 package com.android.dialer.expressive
 
 import androidx.compose.animation.core.animateFloatAsState
