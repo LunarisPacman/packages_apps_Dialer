@@ -22,26 +22,49 @@
 package com.android.dialer.expressive
 
 import android.telecom.CallAudioState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -64,21 +87,47 @@ internal fun ColorOsCallButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     selected: Boolean = false,
+    glassBackdrop: DialerGlassBackdrop? = null,
+    isRecording: Boolean = false,
     symbolModifier: Modifier = Modifier.size(28.dp)
 ) {
     val haptic = LocalHapticFeedback.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+
+    // Bouncy spring touch response
     val scale by animateFloatAsState(
-        if (enabled && pressed) 0.92f else 1f,
-        spring(0.65f, 500f),
-        label = "coloros button scale"
+        targetValue = if (enabled && pressed) 0.88f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.55f,
+            stiffness = 380f
+        ),
+        label = "coloros_btn_scale"
     )
 
-    val activeBg = Color.White.copy(alpha = 0.95f)
-    val activeFg = Color.Black
-    val idleBg = Color.White.copy(alpha = 0.18f)
-    val idleBorder = Color.White.copy(alpha = 0.30f)
+    // Animated colors for state transitions
+    val animatedContentColor by animateColorAsState(
+        targetValue = if (selected) Color(0xFF1E1E1E) else Color.White,
+        animationSpec = spring(stiffness = 450f),
+        label = "coloros_btn_fg"
+    )
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (selected) Color.White else Color.White.copy(alpha = 0.38f),
+        animationSpec = spring(stiffness = 450f),
+        label = "coloros_btn_border"
+    )
+
+    // Gentle waveform pulse when recording is in progress
+    val infiniteTransition = rememberInfiniteTransition(label = "recording_pulse")
+    val waveformPulse by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "waveform_pulse"
+    )
 
     Column(
         modifier = modifier
@@ -90,14 +139,57 @@ internal fun ColorOsCallButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Surface(
+        val glassModifier = if (glassBackdrop != null && !selected) {
+            Modifier.dialerGlass(
+                backdrop = glassBackdrop,
+                shape = CircleShape,
+                blurRadius = 26.dp,
+                tint = Color.White.copy(alpha = if (pressed) 0.22f else 0.12f),
+                highlight = Color.White.copy(alpha = 0.40f)
+            )
+        } else {
+            Modifier
+        }
+
+        Box(
             modifier = Modifier
                 .size(64.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 }
+                .shadow(
+                    elevation = if (selected) 6.dp else 3.dp,
+                    shape = CircleShape,
+                    ambientColor = if (selected) Color.White.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.35f),
+                    spotColor = if (selected) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.25f)
+                )
+                .then(glassModifier)
                 .clip(CircleShape)
+                .background(
+                    if (selected) {
+                        Brush.verticalGradient(
+                            listOf(Color.White.copy(alpha = 0.98f), Color.White.copy(alpha = 0.92f))
+                        )
+                    } else if (glassBackdrop != null) {
+                        // Subtle specular surface sheen over the live frosted glass
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (pressed) 0.18f else 0.10f),
+                                Color.White.copy(alpha = if (pressed) 0.08f else 0.03f)
+                            )
+                        )
+                    } else {
+                        // Fallback translucent frosted glass when backdrop is not supplied
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (pressed) 0.30f else 0.20f),
+                                Color.White.copy(alpha = if (pressed) 0.20f else 0.12f)
+                            )
+                        )
+                    }
+                )
+                .border(BorderStroke(1.1.dp, animatedBorderColor), CircleShape)
                 .clickable(
                     enabled = enabled,
                     role = Role.Button,
@@ -107,16 +199,34 @@ internal fun ColorOsCallButton(
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onClick()
                 },
-            shape = CircleShape,
-            color = if (selected) activeBg else idleBg,
-            contentColor = if (selected) activeFg else Color.White,
-            border = BorderStroke(1.2.dp, if (selected) Color.White else idleBorder),
-            shadowElevation = 0.dp
+            contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Symbol(symbol, modifier = symbolModifier)
+            Box(
+                modifier = if (isRecording) {
+                    Modifier.graphicsLayer {
+                        scaleX = waveformPulse
+                        scaleY = waveformPulse
+                    }
+                } else Modifier,
+                contentAlignment = Alignment.Center
+            ) {
+                CompositionLocalProvider(LocalContentColor provides animatedContentColor) {
+                    Symbol(symbol, modifier = symbolModifier)
+                }
+            }
+
+            if (isRecording) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-10).dp, y = 10.dp)
+                        .background(Color(0xFFFF3B30), CircleShape)
+                        .border(1.dp, Color.White, CircleShape)
+                )
             }
         }
+
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -131,16 +241,23 @@ internal fun ColorOsCallButton(
 internal fun ColorOsEndCallButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
+    glassBackdrop: DialerGlassBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+
     val scale by animateFloatAsState(
-        if (enabled && pressed) 0.93f else 1f,
-        spring(0.65f, 500f),
-        label = "coloros end scale"
+        targetValue = if (enabled && pressed) 0.90f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.55f,
+            stiffness = 380f
+        ),
+        label = "coloros_end_scale"
     )
+
+    val shape = RoundedCornerShape(32.dp)
 
     Column(
         modifier = modifier.semantics {
@@ -149,15 +266,43 @@ internal fun ColorOsEndCallButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Surface(
+        val glassModifier = if (glassBackdrop != null) {
+            Modifier.dialerGlass(
+                backdrop = glassBackdrop,
+                shape = shape,
+                blurRadius = 24.dp,
+                tint = Color(0xC8D32F2F),
+                highlight = Color.White.copy(alpha = 0.40f)
+            )
+        } else {
+            Modifier
+        }
+
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .width(136.dp)
                 .height(64.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 }
-                .clip(RoundedCornerShape(32.dp))
+                .shadow(
+                    elevation = 6.dp,
+                    shape = shape,
+                    ambientColor = Color(0x66FF3B30),
+                    spotColor = Color(0x88D32F2F)
+                )
+                .then(glassModifier)
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFFFF5252).copy(alpha = if (pressed) 0.95f else 0.88f),
+                            Color(0xFFD32F2F).copy(alpha = if (pressed) 1f else 0.94f)
+                        )
+                    )
+                )
+                .border(BorderStroke(1.2.dp, Color.White.copy(alpha = 0.35f)), shape)
                 .clickable(
                     enabled = enabled,
                     role = Role.Button,
@@ -167,16 +312,13 @@ internal fun ColorOsEndCallButton(
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onClick()
                 },
-            shape = RoundedCornerShape(32.dp),
-            color = EndCallRed,
-            contentColor = Color.White,
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
-            shadowElevation = 2.dp
+            contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            CompositionLocalProvider(LocalContentColor provides Color.White) {
                 Symbol(DialerSymbol.EndCall, modifier = Modifier.size(30.dp))
             }
         }
+
         Text(
             text = stringResource(R.string.expressive_end),
             style = MaterialTheme.typography.labelMedium,
@@ -193,26 +335,25 @@ internal fun ColorOsCallControls(
     recording: Boolean,
     dialpad: Boolean,
     endEnabled: Boolean,
+    glassBackdrop: DialerGlassBackdrop? = null,
     isControlEnabled: (Int) -> Boolean,
     clickControl: (Int) -> Unit,
     endCall: () -> Unit,
     onSpeakerClick: () -> Unit,
     onDialpadClick: () -> Unit,
-    onSummarizeClick: () -> Unit,
     onMoreClick: () -> Unit,
     showMore: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        // Row 1: Mute, Record, Summarise, More
+        // Row 1: Mute (left), Record (center), More (right)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
             ColorOsCallButton(
@@ -220,37 +361,36 @@ internal fun ColorOsCallControls(
                 label = stringResource(R.string.expressive_mute),
                 onClick = { clickControl(BUTTON_MUTE) },
                 enabled = isControlEnabled(BUTTON_MUTE),
-                selected = audio?.isMuted == true
+                selected = audio?.isMuted == true,
+                glassBackdrop = glassBackdrop,
+                modifier = Modifier.weight(1f)
             )
             ColorOsCallButton(
                 symbol = DialerSymbol.Waveform,
                 label = stringResource(R.string.expressive_record),
                 onClick = { clickControl(BUTTON_RECORD_CALL) },
                 enabled = isControlEnabled(BUTTON_RECORD_CALL),
-                selected = recording
-            )
-            ColorOsCallButton(
-                symbol = DialerSymbol.Summarize,
-                label = stringResource(R.string.expressive_summarise),
-                onClick = onSummarizeClick,
-                enabled = true,
-                selected = false
+                selected = recording,
+                glassBackdrop = glassBackdrop,
+                isRecording = recording,
+                modifier = Modifier.weight(1f)
             )
             ColorOsCallButton(
                 symbol = DialerSymbol.More,
                 label = stringResource(R.string.expressive_more),
                 onClick = onMoreClick,
                 enabled = true,
-                selected = showMore
+                selected = showMore,
+                glassBackdrop = glassBackdrop,
+                modifier = Modifier.weight(1f)
             )
         }
 
-        // Row 2: Speaker, End (spanning center), Dial pad
+        // Row 2: Speaker (left), End (center capsule), Dial pad (right)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
             ColorOsCallButton(
@@ -258,21 +398,24 @@ internal fun ColorOsCallControls(
                 label = stringResource(R.string.expressive_speaker),
                 onClick = onSpeakerClick,
                 enabled = isControlEnabled(BUTTON_AUDIO),
-                selected = audio?.route == CallAudioState.ROUTE_SPEAKER
+                selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
+                glassBackdrop = glassBackdrop,
+                modifier = Modifier.weight(1f)
             )
             ColorOsEndCallButton(
                 onClick = endCall,
                 enabled = endEnabled,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp)
+                glassBackdrop = glassBackdrop,
+                modifier = Modifier.weight(1f)
             )
             ColorOsCallButton(
                 symbol = DialerSymbol.Keypad,
                 label = stringResource(R.string.expressive_dial_pad),
                 onClick = onDialpadClick,
                 enabled = isControlEnabled(BUTTON_DIALPAD),
-                selected = dialpad
+                selected = dialpad,
+                glassBackdrop = glassBackdrop,
+                modifier = Modifier.weight(1f)
             )
         }
     }

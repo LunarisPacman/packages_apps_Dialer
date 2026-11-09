@@ -247,10 +247,10 @@ internal fun ColorOsCallerBackground(photo: ImageBitmap?, modifier: Modifier = M
                 .fillMaxSize()
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.40f),
-                        0.4f to Color.Black.copy(alpha = 0.20f),
-                        0.7f to Color.Black.copy(alpha = 0.48f),
-                        1.0f to Color.Black.copy(alpha = 0.65f)
+                        0.0f to Color.Black.copy(alpha = 0.35f),
+                        0.35f to Color.Black.copy(alpha = 0.12f),
+                        0.70f to Color.Black.copy(alpha = 0.22f),
+                        1.0f to Color.Black.copy(alpha = 0.32f)
                     )
                 )
         )

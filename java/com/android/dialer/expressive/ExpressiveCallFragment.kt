@@ -189,6 +189,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         }
         val photo = callerPhoto ?: contactPhoto
         val fallbackPhotoResId = primaryInfoState.fallbackPhotoResId()
+        val glassBackdrop = rememberDialerGlassBackdrop()
         val callerForeground = when {
             oneUi9 || colorOs17 -> Color.White
             hyperOs -> rememberHyperOsForeground(photo, fallbackPhotoResId != 0)
@@ -197,7 +198,11 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = callerForeground) {
             Box(Modifier.fillMaxSize()) {
-                if (colorOs17) ColorOsCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
+                if (colorOs17) ColorOsCallerBackground(
+                    photo,
+                    Modifier.fillMaxSize().dialerGlassSource(glassBackdrop),
+                    fallbackPhotoResId
+                )
                 else if (oneUi9) OneUiCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
                 else if (hyperOs) HyperOsCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
                 else if (fullScreenCaller) CallerPortrait(photo, Modifier.fillMaxSize(), fallbackPhotoResId,
@@ -423,18 +428,12 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 isControlEnabled = ::isControlEnabled,
                                 clickControl = ::clickControl,
                                 endCall = ::endCall,
+                                glassBackdrop = glassBackdrop,
                                 onSpeakerClick = {
                                     buttonDelegate.toggleSpeakerphone()
                                 },
                                 onDialpadClick = {
                                     buttonDelegate.showDialpadClicked(!dialpad)
-                                },
-                                onSummarizeClick = {
-                                    if (recording) {
-                                        Toast.makeText(requireContext(), R.string.expressive_note_sent, Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(requireContext(), R.string.expressive_summarise_prompt, Toast.LENGTH_SHORT).show()
-                                    }
                                 },
                                 onMoreClick = {
                                     showColorOsMoreSheet = true
@@ -446,7 +445,8 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                             ColorOsEndCallButton(
                                 onClick = { endCall() },
                                 enabled = endEnabled,
-                                modifier = Modifier.widthIn(max = 200.dp).fillMaxWidth().align(Alignment.Center)
+                                glassBackdrop = glassBackdrop,
+                                modifier = Modifier.align(Alignment.Center)
                             )
                         }
                     } else if (oneUi9) {
