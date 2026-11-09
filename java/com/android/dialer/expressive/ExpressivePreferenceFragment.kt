@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
@@ -212,6 +213,7 @@ private fun preferenceSymbol(pref: Preference): DialerSymbol {
         key.contains("monochrome") -> DialerSymbol.Photo
         key.contains("hide_call_status_bar") -> DialerSymbol.Accessibility
         key.contains("compact_floating_bar") -> DialerSymbol.History
+        key.contains("hidden_nav_items") -> DialerSymbol.More
         key.contains("universal_call") -> DialerSymbol.Phone
         key == "bottom_dialpad_backspace" -> DialerSymbol.Backspace
         key.contains("hide_keyboard_on_scroll") -> DialerSymbol.Keypad
@@ -271,13 +273,24 @@ private fun PreferenceDialog(pref: Preference, dismiss: () -> Unit, changed: () 
                         }
                     }
                 }
-                is MultiSelectListPreference -> LazyColumn {
-                    items(pref.entries.size) { index ->
-                        val value = pref.entryValues[index].toString()
-                        Row(Modifier.fillMaxWidth().clickable {
-                            values = if (value in values) values - value else values + value
-                        }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(value in values, null); Text(pref.entries[index].toString(), Modifier.padding(start = 12.dp))
+                is MultiSelectListPreference -> {
+                    val context = LocalContext.current
+                    LazyColumn {
+                        items(pref.entries.size) { index ->
+                            val value = pref.entryValues[index].toString()
+                            Row(Modifier.fillMaxWidth().clickable {
+                                if (value in values) {
+                                    values = values - value
+                                } else {
+                                    if (pref.key == "hidden_nav_items" && values.size >= 2) {
+                                        android.widget.Toast.makeText(context, R.string.hidden_nav_items_max_limit_toast, android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        values = values + value
+                                    }
+                                }
+                            }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(value in values, null); Text(pref.entries[index].toString(), Modifier.padding(start = 12.dp))
+                            }
                         }
                     }
                 }
