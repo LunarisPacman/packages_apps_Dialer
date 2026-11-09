@@ -155,14 +155,13 @@ internal fun CustomCallBackground(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(
-                            0.0f to Color.Black.copy(alpha = 0.35f),
-                            0.30f to Color.Transparent,
-                            0.70f to Color.Black.copy(alpha = 0.18f),
-                            1.0f to Color.Black.copy(alpha = 0.35f)
-                        )
+                        0.0f to Color.Black.copy(alpha = 0.35f),
+                        0.30f to Color.Transparent,
+                        0.70f to Color.Black.copy(alpha = 0.18f),
+                        1.0f to Color.Black.copy(alpha = 0.35f)
                     )
                 )
         )
     }
 }
+
