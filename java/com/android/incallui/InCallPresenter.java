@@ -568,6 +568,13 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
     if (call.getDetails().hasProperty(CallCompat.Details.PROPERTY_IS_EXTERNAL_CALL)) {
       externalCallList.onCallRemoved(call);
     } else {
+      if (call.getDetails().hasProperty(CallCompat.Details.PROPERTY_SELF_MANAGED)
+          && isUniversalCallSupportEnabled(context)) {
+        DialerCall dialerCall = callList.getDialerCallFromTelecomCall(call);
+        if (dialerCall != null) {
+          CallList.logSelfManagedCall(context, dialerCall);
+        }
+      }
       callList.onCallRemoved(context, call);
       try {
         call.unregisterCallback(callCallback);
@@ -791,6 +798,11 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
       inCallActivity.onPrimaryCallStateChanged();
     }
     Trace.endSection();
+
+    if (call.isSelfManaged() && isUniversalCallSupportEnabled(context)) {
+      showInCall(false /* showDialpad */, false /* newOutgoingCall */);
+    }
+
     Trace.endSection();
   }
 
@@ -1407,6 +1419,17 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
             && mainUiNotVisible
             && isCallWithNoValidAccounts(callList.getPendingOutgoingCall());
 
+    DialerCall incomingOrActiveCall = callList.getIncomingCall();
+    if (incomingOrActiveCall == null) {
+      incomingOrActiveCall = callList.getActiveCall();
+    }
+    if (incomingOrActiveCall != null && incomingOrActiveCall.isSelfManaged()
+        && isUniversalCallSupportEnabled(context)) {
+      if (newState == InCallState.INCOMING || newState == InCallState.INCALL) {
+        showCallUi |= mainUiNotVisible;
+      }
+    }
+
     // The only time that we have an instance of mInCallActivity and it isn't started is
     // when it is being destroyed.  In that case, lets avoid bringing up another instance of
     // the activity.  When it is finally destroyed, we double check if we should bring it back
@@ -1432,7 +1455,10 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
 
     if (showCallUi || showAccountPicker) {
       LogUtil.i("InCallPresenter.startOrFinishUi", "Start in call UI");
-      showInCall(false /* showDialpad */, !showAccountPicker /* newOutgoingCall */);
+      boolean isOutgoing =
+          (newState == InCallState.OUTGOING || newState == InCallState.PENDING_OUTGOING)
+              && !showAccountPicker;
+      showInCall(false /* showDialpad */, isOutgoing /* newOutgoingCall */);
     } else if (newState == InCallState.NO_CALLS) {
       // The new state is the no calls state.  Tear everything down.
       inCallState = newState;

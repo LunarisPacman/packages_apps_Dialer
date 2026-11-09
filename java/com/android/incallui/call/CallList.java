@@ -17,25 +17,30 @@
 
 package com.android.incallui.call;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Trace;
 import android.provider.BlockedNumberContract;
+import android.provider.CallLog.Calls;
 import android.telecom.Call;
 import android.telecom.DisconnectCause;
 import android.telecom.PhoneAccount;
+import android.telecom.PhoneAccountHandle;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.dialer.R;
 import com.android.dialer.common.Assert;
 import com.android.dialer.common.LogUtil;
 import com.android.dialer.promotion.impl.RttPromotion;
 import com.android.dialer.shortcuts.ShortcutUsageReporter;
+import com.android.incallui.InCallPresenter;
 import com.android.incallui.call.state.DialerCallState;
 import com.android.incallui.videotech.utils.SessionModificationState;
 
@@ -152,10 +157,94 @@ public class CallList implements DialerCallDelegate {
     return callByTelecomCall.get(telecomCall);
   }
 
+  public static void logSelfManagedCall(Context context, DialerCall call) {
+    if (context == null || call == null) {
+      return;
+    }
+    if (call.getLogState() != null && call.getLogState().isLogged) {
+      return;
+    }
+    if (call.getLogState() != null) {
+      call.getLogState().isLogged = true;
+    }
+
+    try {
+      ContentValues values = new ContentValues();
+      String number = call.getNumber();
+      String name = call.getCnapName();
+      if (TextUtils.isEmpty(number)) {
+        number = !TextUtils.isEmpty(name) ? name : call.getCallProviderLabel();
+      }
+      if (TextUtils.isEmpty(number)) {
+        number = context.getString(R.string.unknown);
+      }
+      values.put(Calls.NUMBER, number);
+      if (!TextUtils.isEmpty(name)) {
+        values.put(Calls.CACHED_NAME, name);
+      }
+
+      long creationTime = call.getCreationTimeMillis();
+      if (creationTime <= 0) {
+        creationTime = System.currentTimeMillis();
+      }
+      values.put(Calls.DATE, creationTime);
+
+      long connectTime = call.getConnectTimeMillis();
+      long duration = 0;
+      if (connectTime > 0) {
+        duration = Math.max(0, (System.currentTimeMillis() - connectTime) / 1000);
+      }
+      values.put(Calls.DURATION, duration);
+
+      int type;
+      if (DialerCallState.isDialing(call.getState()) || call.getState() == DialerCallState.CONNECTING) {
+        type = Calls.OUTGOING_TYPE;
+      } else if (connectTime > 0) {
+        type = call.isIncoming() ? Calls.INCOMING_TYPE : Calls.OUTGOING_TYPE;
+      } else if (call.isIncoming()) {
+        DisconnectCause cause = call.getDisconnectCause();
+        type = (cause != null && cause.getCode() == DisconnectCause.REJECTED)
+            ? Calls.REJECTED_TYPE : Calls.MISSED_TYPE;
+      } else {
+        type = Calls.OUTGOING_TYPE;
+      }
+      values.put(Calls.TYPE, type);
+      values.put(Calls.NEW, 1);
+      values.put(Calls.NUMBER_PRESENTATION, Calls.PRESENTATION_ALLOWED);
+
+      PhoneAccountHandle accountHandle = call.getAccountHandle();
+      if (accountHandle != null) {
+        if (accountHandle.getComponentName() != null) {
+          values.put(Calls.PHONE_ACCOUNT_COMPONENT_NAME, accountHandle.getComponentName().flattenToString());
+        }
+        if (accountHandle.getId() != null) {
+          values.put(Calls.PHONE_ACCOUNT_ID, accountHandle.getId());
+        }
+      }
+
+      final Context appContext =
+          context.getApplicationContext() != null ? context.getApplicationContext() : context;
+      new Thread(() -> {
+        try {
+          appContext.getContentResolver().insert(Calls.CONTENT_URI, values);
+          LogUtil.i("CallList.logSelfManagedCall", "Inserted VoIP call into CallLog: " + values);
+        } catch (Exception e) {
+          LogUtil.e("CallList.logSelfManagedCall", "Failed to insert VoIP call log", e);
+        }
+      }).start();
+    } catch (Exception e) {
+      LogUtil.e("CallList.logSelfManagedCall", "Error preparing VoIP call log", e);
+    }
+  }
+
   public void onCallRemoved(Context context, android.telecom.Call telecomCall) {
     if (callByTelecomCall.containsKey(telecomCall)) {
       DialerCall call = callByTelecomCall.get(telecomCall);
       Assert.checkArgument(!call.isExternalCall());
+
+      if (call.isSelfManaged() && InCallPresenter.isUniversalCallSupportEnabled(context)) {
+        logSelfManagedCall(context, call);
+      }
 
       // Don't log an already logged call. logCall() might be called multiple times
       // for the same call due to a bug.
@@ -674,6 +763,9 @@ public class CallList implements DialerCallDelegate {
     public void onDialerCallDisconnect() {
       if (updateCallInMap(call)) {
         LogUtil.i("DialerCallListenerImpl.onDialerCallDisconnect", String.valueOf(call));
+        if (call.isSelfManaged() && InCallPresenter.isUniversalCallSupportEnabled(call.getContext())) {
+          logSelfManagedCall(call.getContext(), call);
+        }
         // notify those listening for all disconnects
         notifyListenersOfDisconnect(call);
       }

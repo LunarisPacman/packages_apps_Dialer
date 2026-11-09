@@ -664,7 +664,7 @@ public class CallCardPresenter
                   shouldShowLocationAsLabel(nameIsNumber, primaryContactInfo.shouldShowLocation)
                       ? primaryContactInfo.location
                       : null)
-              .setLabel(isChildNumberShown || isCallSubjectShown ? null : primaryContactInfo.label)
+              .setLabel(isChildNumberShown || isCallSubjectShown ? null : (primary.isSelfManaged() ? primary.getCallProviderLabel() : primaryContactInfo.label))
               .setPhoto(primaryContactInfo.photo)
               .setPhotoUri(primaryContactInfo.displayPhotoUri)
               .setPhotoType(primaryContactInfo.photoType)
@@ -854,8 +854,11 @@ public class CallCardPresenter
             .contactDisplayPreferences()
             .getDisplayName(contactInfo.namePrimary, contactInfo.nameAlternative);
     if (TextUtils.isEmpty(preferredName)) {
+      if (primary != null && !TextUtils.isEmpty(primary.getCnapName())) {
+        return primary.getCnapName();
+      }
       return TextUtils.isEmpty(contactInfo.number)
-          ? null
+          ? (primary != null ? primary.getCallProviderLabel() : null)
           : BidiFormatter.getInstance()
               .unicodeWrap(contactInfo.number, TextDirectionHeuristics.LTR);
     }

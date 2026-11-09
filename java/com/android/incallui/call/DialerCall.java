@@ -1143,6 +1143,10 @@ public class DialerCall implements VideoTechListener {
     return hasProperty(CallCompat.Details.PROPERTY_IS_EXTERNAL_CALL);
   }
 
+  public Context getContext() {
+    return context;
+  }
+
   public boolean isSelfManaged() {
     return hasProperty(CallCompat.Details.PROPERTY_SELF_MANAGED)
         && InCallPresenter.isUniversalCallSupportEnabled(context);

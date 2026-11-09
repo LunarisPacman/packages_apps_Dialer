@@ -566,8 +566,11 @@ public class StatusBarNotifier
             .contactDisplayPreferences()
             .getDisplayName(contactInfo.namePrimary, contactInfo.nameAlternative);
     if (TextUtils.isEmpty(preferredName)) {
+      if (!TextUtils.isEmpty(call.getCnapName())) {
+        return call.getCnapName();
+      }
       return TextUtils.isEmpty(contactInfo.number)
-          ? null
+          ? call.getCallProviderLabel()
           : BidiFormatter.getInstance()
               .unicodeWrap(contactInfo.number, TextDirectionHeuristics.LTR);
     }
@@ -684,6 +687,19 @@ public class StatusBarNotifier
       }
     }
 
+
+    if (call.isSelfManaged()) {
+      String appLabel = call.getCallProviderLabel();
+      if (isIncomingOrWaiting) {
+        return !TextUtils.isEmpty(appLabel)
+            ? context.getString(R.string.notification_incoming_call) + " (" + appLabel + ")"
+            : context.getString(R.string.notification_incoming_call);
+      } else {
+        return !TextUtils.isEmpty(appLabel)
+            ? context.getString(R.string.notification_ongoing_call) + " (" + appLabel + ")"
+            : context.getString(R.string.notification_ongoing_call);
+      }
+    }
 
     String message = getOngoingCallNotificationMessage(isWorkCall);
     String wifiBrand = getWifiBrand(isWorkCall);

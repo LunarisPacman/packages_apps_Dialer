@@ -138,17 +138,17 @@ public class DialerSettingsActivity extends BaseActivity implements
         callSettings.setIntent(callSettingsIntent);
         callSettings.setIconSpaceReserved(false);
         getPreferenceScreen().addPreference(callSettings);
-      } else {
-        Preference phoneAccountSettings = new Preference(getContext());
-        Intent phoneAccountSettingsIntent = new Intent(TelecomManager.ACTION_CHANGE_PHONE_ACCOUNTS);
-        phoneAccountSettingsIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-        phoneAccountSettings.setTitle(R.string.phone_account_settings_label);
-        phoneAccountSettings.setSummary(R.string.expressive_settings_accounts_summary);
-        phoneAccountSettings.setIntent(phoneAccountSettingsIntent);
-        phoneAccountSettings.setIconSpaceReserved(false);
-        getPreferenceScreen().addPreference(phoneAccountSettings);
       }
+
+      Preference phoneAccountSettings = new Preference(getContext());
+      Intent phoneAccountSettingsIntent = new Intent(TelecomManager.ACTION_CHANGE_PHONE_ACCOUNTS);
+      phoneAccountSettingsIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+      phoneAccountSettings.setTitle(R.string.phone_account_settings_label);
+      phoneAccountSettings.setSummary(R.string.expressive_settings_accounts_summary);
+      phoneAccountSettings.setIntent(phoneAccountSettingsIntent);
+      phoneAccountSettings.setIconSpaceReserved(false);
+      getPreferenceScreen().addPreference(phoneAccountSettings);
       if (BlockedNumberContract.canCurrentUserBlockNumbers(getContext())) {
         Preference blockedCalls = new Preference(getContext());
         blockedCalls.setTitle(R.string.manage_blocked_numbers_label);
