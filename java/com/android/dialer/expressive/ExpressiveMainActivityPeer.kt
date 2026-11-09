@@ -56,6 +56,7 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
     private var digits by mutableStateOf("")
     private var keypad by mutableStateOf(false)
     private var compactFloatingBar by mutableStateOf(false)
+    private var floatingBarBlur by mutableStateOf(false)
     private var hideKeyboardOnScroll by mutableStateOf(true)
     private var groupContactsByName by mutableStateOf(true)
     private var bottomDialpadBackspace by mutableStateOf(true)
@@ -92,6 +93,10 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
         activity.supportActionBar?.hide()
         WindowCompat.setDecorFitsSystemWindows(activity.window, false)
         activity.window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        floatingBarBlur = PreferenceManager.getDefaultSharedPreferences(activity)
+            .getBoolean("floating_bar_blur", false)
+        compactFloatingBar = PreferenceManager.getDefaultSharedPreferences(activity)
+            .getBoolean("compact_floating_bar", false)
         hiddenNavItems = PreferenceManager.getDefaultSharedPreferences(activity)
             .getStringSet("hidden_nav_items", emptySet()) ?: emptySet()
         if (saveInstanceState != null) {
@@ -114,6 +119,7 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
                         groupContactsByName = groupContactsByName,
                         bottomDialpadBackspace = bottomDialpadBackspace,
                         hiddenNavItems = hiddenNavItems,
+                        floatingBarBlur = floatingBarBlur,
                         onTab = { tab = it; query = "" }, onQuery = { query = it },
                         onDigits = { updateDigits(it) }, onKeypad = { keypad = it },
                         onCall = { call(it) }, onVideo = { call(it, true) }, onVoicemail = { voicemail() },
@@ -238,6 +244,8 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
         speedDial = speedDialStore.load()
         compactFloatingBar = PreferenceManager.getDefaultSharedPreferences(activity)
             .getBoolean("compact_floating_bar", false)
+        floatingBarBlur = PreferenceManager.getDefaultSharedPreferences(activity)
+            .getBoolean("floating_bar_blur", false)
         hiddenNavItems = PreferenceManager.getDefaultSharedPreferences(activity)
             .getStringSet("hidden_nav_items", emptySet()) ?: emptySet()
         if (isTabHidden(tab)) tab = defaultTab()

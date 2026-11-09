@@ -213,6 +213,7 @@ private fun preferenceSymbol(pref: Preference): DialerSymbol {
         key.contains("monochrome") -> DialerSymbol.Photo
         key.contains("hide_call_status_bar") -> DialerSymbol.Accessibility
         key.contains("compact_floating_bar") -> DialerSymbol.History
+        key.contains("floating_bar_blur") -> DialerSymbol.Photo
         key.contains("hidden_nav_items") -> DialerSymbol.More
         key.contains("universal_call") -> DialerSymbol.Phone
         key == "bottom_dialpad_backspace" -> DialerSymbol.Backspace
