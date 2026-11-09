@@ -32,6 +32,7 @@ public class CallCompat {
   public static class Details {
 
     public static final int PROPERTY_IS_EXTERNAL_CALL = Call.Details.PROPERTY_IS_EXTERNAL_CALL;
+    public static final int PROPERTY_SELF_MANAGED = Call.Details.PROPERTY_SELF_MANAGED;
     public static final int PROPERTY_ENTERPRISE_CALL = Call.Details.PROPERTY_ENTERPRISE_CALL;
     public static final int CAPABILITY_CAN_PULL_CALL = Call.Details.CAPABILITY_CAN_PULL_CALL;
     public static final int CAPABILITY_CANNOT_DOWNGRADE_VIDEO_TO_AUDIO =

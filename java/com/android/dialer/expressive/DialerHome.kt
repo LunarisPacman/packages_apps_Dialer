@@ -367,11 +367,12 @@ private fun ContactRow(
 }
 
 @Composable
-internal fun RecentCall.displayName(): String = when (presentation) {
-    Calls.PRESENTATION_RESTRICTED -> stringResource(R.string.expressive_private_number)
-    Calls.PRESENTATION_PAYPHONE -> stringResource(R.string.expressive_payphone)
-    Calls.PRESENTATION_UNKNOWN, Calls.PRESENTATION_UNAVAILABLE -> stringResource(R.string.expressive_unknown)
-    else -> name.ifBlank { number.ifBlank { stringResource(R.string.expressive_unknown) } }
+internal fun RecentCall.displayName(): String = when {
+    name.isNotBlank() -> name
+    presentation == Calls.PRESENTATION_RESTRICTED -> stringResource(R.string.expressive_private_number)
+    presentation == Calls.PRESENTATION_PAYPHONE -> stringResource(R.string.expressive_payphone)
+    number.isNotBlank() -> number
+    else -> stringResource(R.string.expressive_unknown)
 }
 @Composable
 internal fun RecentCall.typeLabel(): String = stringResource(when (type) {

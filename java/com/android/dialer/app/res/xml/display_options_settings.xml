@@ -84,6 +84,13 @@
       app:iconSpaceReserved="false"/>
 
   <SwitchPreferenceCompat
+      android:key="universal_call_support"
+      android:title="@string/universal_call_support_title"
+      android:summary="@string/universal_call_support_summary"
+      android:defaultValue="true"
+      app:iconSpaceReserved="false"/>
+
+  <SwitchPreferenceCompat
       android:key="bottom_dialpad_backspace"
       android:title="@string/expressive_bottom_dialpad_backspace"
       android:summary="@string/expressive_bottom_dialpad_backspace_summary"

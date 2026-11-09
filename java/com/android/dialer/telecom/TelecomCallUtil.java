@@ -60,7 +60,13 @@ public class TelecomCallUtil {
       return call.getDetails().getGatewayInfo().getOriginalAddress().getSchemeSpecificPart();
     }
     Uri handle = getHandle(call);
-    return handle == null ? null : handle.getSchemeSpecificPart();
+    if (handle != null) {
+      return handle.getSchemeSpecificPart();
+    }
+    if (call.getDetails().getCallerDisplayName() != null) {
+      return call.getDetails().getCallerDisplayName();
+    }
+    return null;
   }
 
   /**

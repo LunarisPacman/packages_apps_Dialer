@@ -26,6 +26,7 @@ import android.provider.BlockedNumberContract.BlockedNumbers
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.telecom.PhoneAccountHandle
+import android.telecom.TelecomManager
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
@@ -56,6 +57,9 @@ class DialerRepository(private val context: Context) {
             ?: Locale.getDefault().country).uppercase(Locale.ROOT)
         val numberKeys = mutableMapOf<String, String>()
         val simNumbers = mutableMapOf<PhoneAccountHandle, Int?>()
+        val accountLabels = mutableMapOf<PhoneAccountHandle, String?>()
+        val universalCallSupport = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+            .getBoolean("universal_call_support", true)
         if (contactsAllowed) context.contentResolver.query(Phone.CONTENT_URI,
             arrayOf(Phone.CONTACT_ID, Phone.LOOKUP_KEY, Phone.DISPLAY_NAME_PRIMARY, Phone.NUMBER,
                 Phone.STARRED, Phone.IS_SUPER_PRIMARY, Phone.IS_PRIMARY),
@@ -82,14 +86,37 @@ class DialerRepository(private val context: Context) {
                     if (!simNumbers.containsKey(it)) simNumbers[it] = resolveSimNumber(it)
                     simNumbers[it]
                 }
+                val accountLabel = account?.let {
+                    if (!universalCallSupport || simNumber != null) null
+                    else if (!accountLabels.containsKey(it)) {
+                        accountLabels[it] = resolveAccountLabel(it)
+                        accountLabels[it]
+                    } else accountLabels[it]
+                }
                 val identity = CarrierCallIdentityStore.get(context, number, account)
                 calls += RecentCall(cursor.getLong(0), cursor.getString(1).orEmpty(), number,
                     cursor.getLong(3), cursor.getLong(4), cursor.getInt(5), cursor.getInt(6),
                     numberKeys.getOrPut(number) { recentNumberKey(number, country) }, simNumber,
-                    identity.getSpamStatus(), identity.getVerificationStatus())
+                    identity.getSpamStatus(), identity.getVerificationStatus(),
+                    accountLabel = accountLabel, accountHandle = if (universalCallSupport) account else null)
             }
         }
         DialerData(people.distinctBy { it.id to it.number }, calls, contactsAllowed, callsAllowed)
+    }
+    private fun resolveAccountLabel(account: PhoneAccountHandle): String? {
+        return try {
+            val telecom = context.getSystemService(TelecomManager::class.java)
+            val phoneAccount = telecom?.getPhoneAccount(account)
+            if (phoneAccount != null && !phoneAccount.label.isNullOrBlank()) {
+                phoneAccount.label.toString()
+            } else {
+                val pm = context.packageManager
+                val appInfo = pm.getApplicationInfo(account.componentName.packageName, 0)
+                pm.getApplicationLabel(appInfo).toString()
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
     private fun resolveSimNumber(account: PhoneAccountHandle): Int? {
         if (!has(Manifest.permission.READ_PHONE_STATE)) return null

@@ -119,8 +119,9 @@ public class CallList implements DialerCallDelegate {
 
     Trace.beginSection("checkBlock");
 
-    if (BlockedNumberContract.canCurrentUserBlockNumbers(context) &&
-            BlockedNumberContract.isBlocked(context, call.getNumber())) {
+    if (!TextUtils.isEmpty(call.getNumber()) &&
+        BlockedNumberContract.canCurrentUserBlockNumbers(context) &&
+        BlockedNumberContract.isBlocked(context, call.getNumber())) {
       call.setBlockedStatus(true);
     }
     Trace.endSection();

@@ -20,6 +20,8 @@ package com.android.incallui.call;
 import android.Manifest.permission;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.hardware.camera2.CameraCharacteristics;
 import android.net.Uri;
 import android.os.Bundle;
@@ -50,6 +52,7 @@ import androidx.annotation.Nullable;
 
 import com.android.contacts.common.compat.CallCompat;
 import com.android.dialer.R;
+import com.android.incallui.InCallPresenter;
 import com.android.dialer.assisteddialing.TransformationInfo;
 import com.android.dialer.callintent.CallInitiationType;
 import com.android.dialer.callintent.CallIntentParser;
@@ -869,9 +872,12 @@ public class DialerCall implements VideoTechListener {
 
   @Nullable
   public String getCnapName() {
-    if (telecomCall == null
-        || getNumberPresentation() != TelecomManager.PRESENTATION_ALLOWED
-        || getCnapNamePresentation() != TelecomManager.PRESENTATION_ALLOWED) {
+    if (telecomCall == null) {
+      return null;
+    }
+    if (!isSelfManaged()
+        && (getNumberPresentation() != TelecomManager.PRESENTATION_ALLOWED
+            || getCnapNamePresentation() != TelecomManager.PRESENTATION_ALLOWED)) {
       return null;
     }
 
@@ -1137,6 +1143,11 @@ public class DialerCall implements VideoTechListener {
     return hasProperty(CallCompat.Details.PROPERTY_IS_EXTERNAL_CALL);
   }
 
+  public boolean isSelfManaged() {
+    return hasProperty(CallCompat.Details.PROPERTY_SELF_MANAGED)
+        && InCallPresenter.isUniversalCallSupportEnabled(context);
+  }
+
   /**
    * Determines if answering this call will cause an ongoing video call to be dropped.
    *
@@ -1358,10 +1369,26 @@ public class DialerCall implements VideoTechListener {
   /** Return the string label to represent the call provider */
   public String getCallProviderLabel() {
     if (callProviderLabel == null) {
-      PhoneAccount account = getPhoneAccount();
-      if (account != null && !TextUtils.isEmpty(account.getLabel())) {
-        if (callCapableAccounts != null && callCapableAccounts.size() > 1) {
+      if (isSelfManaged()) {
+        PhoneAccount account = getPhoneAccount();
+        if (account != null && !TextUtils.isEmpty(account.getLabel())) {
           callProviderLabel = account.getLabel().toString();
+        } else if (getAccountHandle() != null) {
+          try {
+            PackageManager pm = context.getPackageManager();
+            ApplicationInfo info = pm.getApplicationInfo(
+                getAccountHandle().getComponentName().getPackageName(), 0);
+            callProviderLabel = pm.getApplicationLabel(info).toString();
+          } catch (Exception e) {
+            callProviderLabel = "";
+          }
+        }
+      } else {
+        PhoneAccount account = getPhoneAccount();
+        if (account != null && !TextUtils.isEmpty(account.getLabel())) {
+          if (callCapableAccounts != null && callCapableAccounts.size() > 1) {
+            callProviderLabel = account.getLabel().toString();
+          }
         }
       }
       if (callProviderLabel == null) {

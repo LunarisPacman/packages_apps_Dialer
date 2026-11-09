@@ -508,9 +508,24 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
     bringToForeground(showDialpad);
   }
 
+  public static boolean isUniversalCallSupportEnabled(Context context) {
+    if (context == null) {
+      return true;
+    }
+    return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        .getBoolean("universal_call_support", true);
+  }
+
   public void onCallAdded(final android.telecom.Call call) {
     Trace.beginSection("InCallPresenter.onCallAdded");
     Call.Details callDetails = call.getDetails();
+    boolean isSelfManaged = callDetails.hasProperty(CallCompat.Details.PROPERTY_SELF_MANAGED);
+    if (isSelfManaged && !isUniversalCallSupportEnabled(context)) {
+      LogUtil.i("InCallPresenter.onCallAdded", "Universal call support disabled; ignoring self-managed call: " + call);
+      Trace.endSection();
+      return;
+    }
+
     if (callDetails.hasProperty(CallCompat.Details.PROPERTY_IS_EXTERNAL_CALL)) {
       externalCallList.onCallAdded(call);
     } else {
@@ -523,17 +538,22 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
       }
 
       TelephonyManager tm = context.getSystemService(TelephonyManager.class);
-      String countryIso = tm.getSimCountryIso().toUpperCase();
+      String countryIso = tm != null && tm.getSimCountryIso() != null ? tm.getSimCountryIso().toUpperCase() : "";
       Uri handle = callDetails.getHandle();
       if (handle != null) {
         String incomingNumber = handle.getSchemeSpecificPart();
 
-        incomingNumber = PhoneNumberUtils.formatNumberToE164(incomingNumber, countryIso);
+        if (incomingNumber != null) {
+          String formatted = PhoneNumberUtils.formatNumberToE164(incomingNumber, countryIso);
+          if (formatted != null) {
+            incomingNumber = formatted;
+          }
 
-        // Check if the number is blocked, to silence the ringer.
-        if (BlockedNumberContract.canCurrentUserBlockNumbers(context) &&
-                BlockedNumberContract.isBlocked(context, incomingNumber)) {
-          TelecomUtil.silenceRinger(context);
+          // Check if the number is blocked, to silence the ringer.
+          if (BlockedNumberContract.canCurrentUserBlockNumbers(context) &&
+                  BlockedNumberContract.isBlocked(context, incomingNumber)) {
+            TelecomUtil.silenceRinger(context);
+          }
         }
       }
     }
@@ -549,7 +569,10 @@ public class InCallPresenter implements CallList.Listener, AudioModeProvider.Aud
       externalCallList.onCallRemoved(call);
     } else {
       callList.onCallRemoved(context, call);
-      call.unregisterCallback(callCallback);
+      try {
+        call.unregisterCallback(callCallback);
+      } catch (Exception ignored) {
+      }
     }
   }
 

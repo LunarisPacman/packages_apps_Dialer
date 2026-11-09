@@ -24,7 +24,9 @@ data class RecentCall(val id: Long, val name: String, val number: String, val da
     val duration: Long, val type: Int, val presentation: Int, val numberKey: String = number,
     val simNumber: Int? = null,
     val spamStatus: Int = CarrierCallIdentity.SPAM_UNKNOWN,
-    val verificationStatus: Int = CarrierCallIdentity.VERIFICATION_UNKNOWN) {
+    val verificationStatus: Int = CarrierCallIdentity.VERIFICATION_UNKNOWN,
+    val accountLabel: String? = null,
+    val accountHandle: android.telecom.PhoneAccountHandle? = null) {
     val callable: Boolean get() = presentation == Calls.PRESENTATION_ALLOWED && number.isNotBlank()
 }
 

@@ -187,7 +187,7 @@ private fun RecentCallDetail(call: RecentCall, showDate: Boolean) {
                 color = if (call.type == Calls.MISSED_TYPE) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
             Text(DateUtils.formatDateTime(LocalContext.current, call.date, flags),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            CallSimLabel(call.simNumber, Modifier.padding(top = 4.dp))
+            CallSimLabel(call.simNumber, call.accountLabel, Modifier.padding(top = 4.dp))
         }
         if (call.duration > 0) Text(DateUtils.formatElapsedTime(call.duration),
             Modifier.padding(start = 12.dp), style = MaterialTheme.typography.labelMedium)
@@ -195,11 +195,12 @@ private fun RecentCallDetail(call: RecentCall, showDate: Boolean) {
 }
 
 @Composable
-private fun CallSimLabel(simNumber: Int?, modifier: Modifier = Modifier) {
+private fun CallSimLabel(simNumber: Int?, accountLabel: String? = null, modifier: Modifier = Modifier) {
     Row(modifier.semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Symbol(DialerSymbol.Sim, modifier = Modifier.size(14.dp))
+        Symbol(if (simNumber != null || accountLabel == null) DialerSymbol.Sim else DialerSymbol.Phone, modifier = Modifier.size(14.dp))
         Text(if (simNumber != null) stringResource(R.string.expressive_sim_number, simNumber)
+            else if (!accountLabel.isNullOrBlank()) accountLabel
             else stringResource(R.string.expressive_sim_unavailable),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -492,7 +492,7 @@ public class CallButtonPresenter
     final boolean showMerge = call.can(android.telecom.Call.Details.CAPABILITY_MERGE_CONFERENCE);
     final boolean showUpgradeToVideo = !isVideo && (hasVideoCallCapabilities(call));
     final boolean showDowngradeToAudio = isVideo && isDowngradeToAudioSupported(call);
-    final boolean showMute = call.can(android.telecom.Call.Details.CAPABILITY_MUTE);
+    final boolean showMute = call.can(android.telecom.Call.Details.CAPABILITY_MUTE) || call.isSelfManaged();
 
     final boolean hasCameraPermission =
         isVideo && VideoUtils.hasCameraPermissionAndShownPrivacyToast(context);

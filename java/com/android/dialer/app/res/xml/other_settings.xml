@@ -17,6 +17,12 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <SwitchPreferenceCompat
+        android:key="universal_call_support"
+        android:title="@string/universal_call_support_title"
+        android:summary="@string/universal_call_support_summary"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
         android:key="enable_post_call"
         android:title="@string/enable_post_call_title"
         android:summary="@string/enable_post_call_summary" />
