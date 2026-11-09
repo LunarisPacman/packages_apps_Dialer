@@ -77,6 +77,7 @@ enum class DialerSymbol(@DrawableRes val drawableRes: Int) {
     Message(R.drawable.ic_ms_chat_24),
     Add(R.drawable.ic_ms_add_24),
     Mic(R.drawable.ic_ms_mic_24),
+    MicOff(R.drawable.ic_ms_mic_off_24),
     Speaker(R.drawable.ic_ms_volume_up_24),
     Pause(R.drawable.ic_ms_pause_24),
     Stop(R.drawable.ic_ms_stop_24),
