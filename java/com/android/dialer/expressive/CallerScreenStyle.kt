@@ -192,7 +192,7 @@ internal fun OneUiCallerBackground(photo: ImageBitmap?, modifier: Modifier = Mod
                         colors = listOf(
                             Color.Black.copy(alpha = 0.35f),
                             Color.Black.copy(alpha = 0.15f),
-                            Color.Black.copy(alpha = 0.45f)
+                            Color.Black.copy(alpha = 0.30f)
                         )
                     )
                 )

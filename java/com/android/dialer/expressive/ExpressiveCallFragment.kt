@@ -31,6 +31,8 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -203,7 +205,11 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                     Modifier.fillMaxSize().dialerGlassSource(glassBackdrop),
                     fallbackPhotoResId
                 )
-                else if (oneUi9) OneUiCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
+                else if (oneUi9) OneUiCallerBackground(
+                    photo,
+                    Modifier.fillMaxSize().dialerGlassSource(glassBackdrop),
+                    fallbackPhotoResId
+                )
                 else if (hyperOs) HyperOsCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
                 else if (fullScreenCaller) CallerPortrait(photo, Modifier.fillMaxSize(), fallbackPhotoResId,
                     if (callerSpamWarning && primaryInfoState.isSpam()) CarrierCallIdentity.SPAM_CONFIRMED
@@ -328,7 +334,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                         }
                                         if (totalPages() > 1) {
                                             Row(
-                                                Modifier.fillMaxWidth().alpha(.6f).semantics {
+                                                Modifier.fillMaxWidth().alpha(.8f).semantics {
                                                     contentDescription = getString(
                                                         R.string.expressive_call_controls_page,
                                                         pagerState.currentPage + 1,
@@ -338,10 +344,17 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 repeat(totalPages()) { index ->
+                                                    val active = index == pagerState.currentPage
+                                                    val dotWidth by animateDpAsState(
+                                                        targetValue = if (active && oneUi9) 16.dp else 8.dp,
+                                                        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+                                                        label = "oneui_dot_width"
+                                                    )
                                                     Box(
-                                                        Modifier.padding(horizontal = 4.dp).size(8.dp)
+                                                        Modifier.padding(horizontal = 4.dp).height(if (oneUi9) 6.dp else 8.dp)
+                                                            .width(dotWidth)
                                                             .background(
-                                                                if (index == pagerState.currentPage)
+                                                                if (active)
                                                                     if (oneUi9) Color.White else MaterialTheme.colorScheme.primary
                                                                 else if (oneUi9) Color.White.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                 CircleShape))
@@ -350,18 +363,18 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                         }
                                         HorizontalPager(
                                             state = pagerState,
-                                            modifier = Modifier.fillMaxWidth().height(if (oneUi9) 216.dp else CALL_CONTROL_PAGER_HEIGHT),
+                                            modifier = Modifier.fillMaxWidth().height(if (oneUi9) 210.dp else CALL_CONTROL_PAGER_HEIGHT),
                                         ) { page ->
                                             if (oneUi9) {
-                                                OneUiCallCard(Modifier.fillMaxWidth()) {
+                                                OneUiCallCard(Modifier.fillMaxWidth(), glassBackdrop = glassBackdrop) {
                                                     Column(
                                                         Modifier.fillMaxWidth(),
-                                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(4.dp),
                                                     ) {
                                                         repeat(CALL_CONTROL_ROWS) { row ->
                                                             Row(
                                                                 Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                                             ) {
                                                                 repeat(CALL_CONTROL_COLUMNS) { column ->
                                                                     val index = page * CALL_CONTROLS_PER_PAGE +
@@ -453,6 +466,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                         OneUiEndCallButton(
                             onClick = { endCall() },
                             enabled = endEnabled,
+                            glassBackdrop = glassBackdrop,
                             modifier = Modifier.align(Alignment.BottomCenter)
                         )
                     } else if (roundedControls) {
