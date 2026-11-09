@@ -177,9 +177,10 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         val callerStyle = rememberCallerScreenStyle()
         val hyperOs = callerStyle == CALLER_STYLE_HYPEROS
         val oneUi9 = callerStyle == CALLER_STYLE_ONEUI9
+        val colorOs17 = callerStyle == CALLER_STYLE_COLOROS17
         val roundedControls = rememberRoundedCallControls()
         LaunchedEffect(roundedControls) { view?.let { ViewCompat.requestApplyInsets(it) } }
-        val fullScreenCaller = callerStyle == CALLER_STYLE_FULLSCREEN || hyperOs || oneUi9
+        val fullScreenCaller = callerStyle == CALLER_STYLE_FULLSCREEN || hyperOs || oneUi9 || colorOs17
         val callerSpamWarning = rememberCallerSpamWarning()
         val callerPhoto = rememberCallerPhoto(number, maxSize = if (fullScreenCaller) 1600 else 512)
         val contactPhoto = remember(primaryInfoState.photo(), primaryInfoState.photoType(), number) {
@@ -189,14 +190,15 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         val photo = callerPhoto ?: contactPhoto
         val fallbackPhotoResId = primaryInfoState.fallbackPhotoResId()
         val callerForeground = when {
-            oneUi9 -> Color.White
+            oneUi9 || colorOs17 -> Color.White
             hyperOs -> rememberHyperOsForeground(photo, fallbackPhotoResId != 0)
             else -> MaterialTheme.colorScheme.onSurface
         }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = callerForeground) {
             Box(Modifier.fillMaxSize()) {
-                if (oneUi9) OneUiCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
+                if (colorOs17) ColorOsCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
+                else if (oneUi9) OneUiCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
                 else if (hyperOs) HyperOsCallerBackground(photo, Modifier.fillMaxSize(), fallbackPhotoResId)
                 else if (fullScreenCaller) CallerPortrait(photo, Modifier.fillMaxSize(), fallbackPhotoResId,
                     if (callerSpamWarning && primaryInfoState.isSpam()) CarrierCallIdentity.SPAM_CONFIRMED
@@ -208,12 +210,12 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                         if (primaryInfoState.isSpam()) CarrierCallIdentity.SPAM_CONFIRMED
                         else primaryInfoState.carrierSpamStatus(), Modifier.fillMaxSize())
                 }
-                BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().padding(bottom = if (answering) 0.dp else if (oneUi9) 116.dp else if (roundedControls) 168.dp else 88.dp)) {
+                BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().padding(bottom = if (answering) 0.dp else if (colorOs17) 200.dp else if (oneUi9) 116.dp else if (roundedControls) 168.dp else 88.dp)) {
                     val availableHeight = maxHeight
                     val compactIdentity = dialpad || availableHeight < 520.dp
                     val topInset = if (hyperOs && !compactIdentity)
                         (availableHeight * .16f).coerceIn(0.dp, 112.dp)
-                    else if (oneUi9 && !compactIdentity)
+                    else if ((oneUi9 || colorOs17) && !compactIdentity)
                         (availableHeight * .10f).coerceIn(0.dp, 72.dp)
                     else 0.dp
                     val avatarSize = minOf(if (compactIdentity) 64.dp else 150.dp, maxWidth / 3) * 1.2f
@@ -253,17 +255,17 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 if (hyperOs) {
                                     HyperOsCallerAvatar(photo, Modifier.size(if (compactIdentity) 64.dp else 76.dp), fallbackPhotoResId)
                                     Spacer(Modifier.height(14.dp))
-                                } else if (oneUi9) {
+                                } else if (oneUi9 || colorOs17) {
                                     OneUiCallerAvatar(photo, Modifier.size(if (compactIdentity) 64.dp else 84.dp), fallbackPhotoResId)
                                     Spacer(Modifier.height(14.dp))
                                 }
-                                CallerNameAndNumber(name, number, compactIdentity, hyperOs = hyperOs, oneUi9 = oneUi9)
-                                if (hyperOs || oneUi9) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
+                                CallerNameAndNumber(name, number, compactIdentity, hyperOs = hyperOs, oneUi9 = oneUi9, colorOs = colorOs17)
+                                if (hyperOs || oneUi9 || colorOs17) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
                                     Text(it, Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyLarge,
                                         color = LocalContentColor.current.copy(alpha = .76f))
                                 }
-                                Spacer(Modifier.height(if (hyperOs || oneUi9) 10.dp else 16.dp))
-                                CallStatus(hyperOs || oneUi9)
+                                Spacer(Modifier.height(if (hyperOs || oneUi9 || colorOs17) 10.dp else 16.dp))
+                                CallStatus(hyperOs || oneUi9 || colorOs17)
                             }
                             val spamStatus = primaryInfoState.carrierSpamStatus()
                             if (primaryInfoState.isSpam() || spamStatus == CarrierCallIdentity.SPAM_CONFIRMED)
@@ -274,11 +276,11 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 Text(stringResource(R.string.expressive_verified_caller), Modifier.padding(top = 8.dp), color = Color(0xFF16834B))
                             else if (primaryInfoState.callerVerificationStatus() == CarrierCallIdentity.VERIFICATION_UNVERIFIED)
                                 Text(stringResource(R.string.expressive_unverified_caller), Modifier.padding(top = 8.dp),
-                                    color = if (hyperOs || oneUi9) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    color = if (hyperOs || oneUi9 || colorOs17) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
                             else if (spamStatus == CarrierCallIdentity.SPAM_NOT_SPAM)
                                 Text(stringResource(R.string.expressive_not_spam), Modifier.padding(top = 8.dp),
-                                    color = if (hyperOs || oneUi9) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (!hyperOs && !oneUi9) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
+                                    color = if (hyperOs || oneUi9 || colorOs17) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (!hyperOs && !oneUi9 && !colorOs17) primaryInfoState.location()?.takeIf { it.isNotBlank() }?.let {
                                 Text(it, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium,
                                     color = LocalContentColor.current)
                             }
@@ -287,7 +289,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 modifier = Modifier.fillMaxWidth().heightIn(min = if (locationVisible) 120.dp else 0.dp))
                             if (secondaryInfoState.shouldShow()) {
                                 FilledTonalButton(onClick = { clickControl(BUTTON_SWITCH_TO_SECONDARY) },
-                                    colors = if (oneUi9 || roundedControls) ButtonDefaults.filledTonalButtonColors(
+                                    colors = if (colorOs17 || oneUi9 || roundedControls) ButtonDefaults.filledTonalButtonColors(
                                         containerColor = Color.White.copy(alpha = .94f),
                                         contentColor = Color.Black,
                                         disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = .35f),
@@ -299,7 +301,9 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 }
                             }
                         }, actions = {
-                            if (answering) AnswerActions() else {
+                            if (answering) AnswerActions() else if (colorOs17) {
+                                // ColorOS 17 controls are rendered in the bottom bar
+                            } else {
                                 AnimatedVisibility(!dialpad && primaryInfoState.showInCallButtonGrid()) {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         val buttons = when {
@@ -404,9 +408,48 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                             }
                         })
                 }
+                var showColorOsMoreSheet by remember { mutableStateOf(false) }
                 if (!answering) Box(Modifier.align(Alignment.BottomCenter).safeDrawingPadding()
-                    .padding(horizontal = 24.dp).padding(top = 16.dp, bottom = if (oneUi9) 24.dp else if (roundedControls) 64.dp else 16.dp)) {
-                    if (oneUi9) {
+                    .padding(horizontal = if (colorOs17) 12.dp else 24.dp).padding(top = 16.dp,
+                        bottom = if (colorOs17) 20.dp else if (oneUi9) 24.dp else if (roundedControls) 64.dp else 16.dp)) {
+                    if (colorOs17) {
+                        val showControls = !dialpad && primaryInfoState.showInCallButtonGrid()
+                        if (showControls) {
+                            ColorOsCallControls(
+                                audio = audio ?: buttonDelegate.currentAudioState,
+                                recording = recording,
+                                dialpad = dialpad,
+                                endEnabled = endEnabled,
+                                isControlEnabled = ::isControlEnabled,
+                                clickControl = ::clickControl,
+                                endCall = ::endCall,
+                                onSpeakerClick = {
+                                    buttonDelegate.toggleSpeakerphone()
+                                },
+                                onDialpadClick = {
+                                    buttonDelegate.showDialpadClicked(!dialpad)
+                                },
+                                onSummarizeClick = {
+                                    if (recording) {
+                                        Toast.makeText(requireContext(), R.string.expressive_note_sent, Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(requireContext(), R.string.expressive_summarise_prompt, Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onMoreClick = {
+                                    showColorOsMoreSheet = true
+                                },
+                                showMore = showColorOsMoreSheet,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            ColorOsEndCallButton(
+                                onClick = { endCall() },
+                                enabled = endEnabled,
+                                modifier = Modifier.widthIn(max = 200.dp).fillMaxWidth().align(Alignment.Center)
+                            )
+                        }
+                    } else if (oneUi9) {
                         OneUiEndCallButton(
                             onClick = { endCall() },
                             enabled = endEnabled,
@@ -432,6 +475,16 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                         Text(stringResource(R.string.expressive_end_call), Modifier.padding(start = 12.dp))
                     }
                 }
+                if (showColorOsMoreSheet) {
+                    ColorOsMoreSheet(
+                        onDismiss = { showColorOsMoreSheet = false },
+                        onActionClick = { actionId ->
+                            clickControl(actionId)
+                        },
+                        isControlEnabled = ::isControlEnabled,
+                        audio = audio ?: buttonDelegate.currentAudioState
+                    )
+                }
             }
         }
         val audioEnabled = isControlEnabled(BUTTON_AUDIO)
@@ -442,7 +495,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
             })
     }
     @Composable
-    private fun CallerNameAndNumber(name: String, number: String, compact: Boolean, hyperOs: Boolean = false, oneUi9: Boolean = false) {
+    private fun CallerNameAndNumber(name: String, number: String, compact: Boolean, hyperOs: Boolean = false, oneUi9: Boolean = false, colorOs: Boolean = false) {
         val context = LocalContext.current
         val preferences = remember(context) { PreferenceManager.getDefaultSharedPreferences(context) }
         var hideSavedNumber by remember(preferences) {
@@ -460,8 +513,8 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         }
         Text(name, Modifier.fillMaxWidth(),
             style = when {
-                oneUi9 && compact -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium)
-                oneUi9 -> MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold)
+                (oneUi9 || colorOs) && compact -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium)
+                oneUi9 || colorOs -> MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold)
                 hyperOs && compact -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Light)
                 hyperOs -> MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Light)
                 compact -> MaterialTheme.typography.headlineSmallEmphasized
@@ -470,7 +523,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         if (number.isNotBlank() && name != number && !(hideSavedNumber && primaryInfoState.isLocalContact()))
             Text(number, Modifier.fillMaxWidth().padding(top = 8.dp),
             style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
-            color = if (hyperOs || oneUi9) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
+            color = if (hyperOs || oneUi9 || colorOs) LocalContentColor.current.copy(alpha = .76f) else MaterialTheme.colorScheme.onSurfaceVariant)
     }
     @Composable
     protected open fun AnswerActions() {}

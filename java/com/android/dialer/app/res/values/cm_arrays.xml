@@ -31,6 +31,7 @@
         <item>@string/caller_screen_style_cookie</item>
         <item>@string/caller_screen_style_hyperos</item>
         <item>@string/caller_screen_style_oneui9</item>
+        <item>@string/caller_screen_style_coloros17</item>
     </string-array>
 
     <string-array name="caller_screen_style_values" translatable="false">
@@ -38,6 +39,7 @@
         <item>cookie</item>
         <item>hyperos</item>
         <item>oneui9</item>
+        <item>coloros17</item>
     </string-array>
 
     <string-array name="nav_item_entries">
