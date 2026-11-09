@@ -17,10 +17,15 @@
 
 package com.android.dialer.app.settings;
 
+import android.app.AlertDialog;
+import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.preference.Preference;
 import androidx.preference.ListPreference;
@@ -28,8 +33,12 @@ import androidx.preference.MultiSelectListPreference;
 import androidx.preference.PreferenceManager;
 
 import com.android.dialer.R;
+import com.android.dialer.common.LogUtil;
 import com.android.dialer.expressive.CallerScreenStylePreferences;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +49,15 @@ public class DisplayOptionsSettingsFragment extends com.android.dialer.expressiv
   private SharedPreferences mPrefs;
   private ListPreference mCallerScreenStyle;
   private MultiSelectListPreference mHiddenNavItems;
+  private ActivityResultLauncher<String> mBackgroundPickerLauncher;
+  private Preference mCustomBackgroundPref;
+
+  @Override
+  public void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    mBackgroundPickerLauncher = registerForActivityResult(
+        new ActivityResultContracts.GetContent(), this::onCustomBackgroundPicked);
+  }
 
   @Override
   public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -60,11 +78,100 @@ public class DisplayOptionsSettingsFragment extends com.android.dialer.expressiv
       mCallerScreenStyle.setOnPreferenceChangeListener(this);
     }
 
+    mCustomBackgroundPref = findPreference("custom_call_background");
+    if (mCustomBackgroundPref != null) {
+      updateCustomBackgroundSummary();
+      mCustomBackgroundPref.setOnPreferenceClickListener(pref -> {
+        boolean isSet = mPrefs.getBoolean("custom_call_background_set", false);
+        if (isSet) {
+          new AlertDialog.Builder(requireContext())
+              .setTitle(R.string.custom_call_background_title)
+              .setItems(new CharSequence[] {
+                  getString(R.string.custom_call_background_choose_new),
+                  getString(R.string.custom_call_background_remove)
+              }, (dialog, which) -> {
+                if (which == 0) {
+                  mBackgroundPickerLauncher.launch("image/*");
+                } else if (which == 1) {
+                  removeCustomBackground();
+                }
+              })
+              .setNegativeButton(android.R.string.cancel, null)
+              .show();
+        } else {
+          mBackgroundPickerLauncher.launch("image/*");
+        }
+        return true;
+      });
+    }
+
     Preference hiddenNavPref = findPreference("hidden_nav_items");
     if (hiddenNavPref instanceof MultiSelectListPreference) {
       mHiddenNavItems = (MultiSelectListPreference) hiddenNavPref;
       updateHiddenNavItemsSummary(mHiddenNavItems.getValues());
       mHiddenNavItems.setOnPreferenceChangeListener(this);
+    }
+  }
+
+  private void onCustomBackgroundPicked(@Nullable Uri uri) {
+    if (uri == null) {
+      return;
+    }
+    Context context = getContext();
+    if (context == null) {
+      return;
+    }
+    try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+      if (in == null) {
+        return;
+      }
+      File target = new File(context.getFilesDir(), "custom_call_background");
+      try (FileOutputStream out = new FileOutputStream(target)) {
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+          out.write(buffer, 0, read);
+        }
+        out.flush();
+      }
+      mPrefs.edit()
+          .putBoolean("custom_call_background_set", true)
+          .putLong("custom_call_background_timestamp", System.currentTimeMillis())
+          .apply();
+      updateCustomBackgroundSummary();
+      Toast.makeText(context, R.string.custom_call_background_set_success, Toast.LENGTH_SHORT).show();
+    } catch (Exception e) {
+      LogUtil.e("DisplayOptionsSettings", "Failed to save custom call background", e);
+      Toast.makeText(context, R.string.custom_call_background_set_failed, Toast.LENGTH_SHORT).show();
+    }
+  }
+
+  private void removeCustomBackground() {
+    Context context = getContext();
+    if (context == null) {
+      return;
+    }
+    File target = new File(context.getFilesDir(), "custom_call_background");
+    if (target.exists()) {
+      target.delete();
+    }
+    mPrefs.edit()
+        .putBoolean("custom_call_background_set", false)
+        .putLong("custom_call_background_timestamp", System.currentTimeMillis())
+        .apply();
+    updateCustomBackgroundSummary();
+    Toast.makeText(context, R.string.custom_call_background_removed, Toast.LENGTH_SHORT).show();
+  }
+
+  private void updateCustomBackgroundSummary() {
+    if (mCustomBackgroundPref == null) {
+      return;
+    }
+    boolean isSet = mPrefs.getBoolean("custom_call_background_set", false);
+    if (isSet) {
+      mCustomBackgroundPref.setSummary(R.string.custom_call_background_active_summary);
+    } else {
+      mCustomBackgroundPref.setSummary(R.string.custom_call_background_summary);
     }
   }
 
