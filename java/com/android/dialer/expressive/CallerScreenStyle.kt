@@ -49,6 +49,7 @@ internal const val CALLER_STYLE_FULLSCREEN = "fullscreen"
 internal const val CALLER_STYLE_COOKIE = "cookie"
 internal const val CALLER_STYLE_HYPEROS = "hyperos"
 internal const val CALLER_STYLE_ONEUI9 = "oneui9"
+internal const val CALLER_STYLE_COLOROS17 = "coloros17"
 internal const val ROUNDED_CALL_CONTROLS_KEY = "rounded_call_screen_controls"
 
 object CallerScreenStylePreferences {
@@ -58,7 +59,7 @@ object CallerScreenStylePreferences {
     @JvmStatic
     fun readAndMigrate(preferences: SharedPreferences): String {
         val stored = preferences.getString(KEY, null)
-        if (stored == CALLER_STYLE_FULLSCREEN || stored == CALLER_STYLE_COOKIE || stored == CALLER_STYLE_HYPEROS || stored == CALLER_STYLE_ONEUI9)
+        if (stored == CALLER_STYLE_FULLSCREEN || stored == CALLER_STYLE_COOKIE || stored == CALLER_STYLE_HYPEROS || stored == CALLER_STYLE_ONEUI9 || stored == CALLER_STYLE_COLOROS17)
             return stored
         val style = if (preferences.getBoolean(LEGACY_KEY, true)) CALLER_STYLE_FULLSCREEN else CALLER_STYLE_COOKIE
         preferences.edit().putString(KEY, style).apply()
@@ -217,5 +218,41 @@ internal fun OneUiCallerAvatar(
         else Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
             Symbol(DialerSymbol.Person, modifier = Modifier.fillMaxSize(.6f))
         }
+    }
+}
+
+@Composable
+internal fun ColorOsCallerBackground(photo: ImageBitmap?, modifier: Modifier = Modifier, fallbackPhotoResId: Int = 0) {
+    val context = LocalContext.current
+    val wallpaper = remember(context) {
+        runCatching { WallpaperManager.getInstance(context).drawable?.toBitmap()?.asImageBitmap() }.getOrNull()
+    }
+    val painter = when {
+        wallpaper != null -> remember(wallpaper) { BitmapPainter(wallpaper) }
+        photo != null -> remember(photo) { BitmapPainter(photo) }
+        fallbackPhotoResId != 0 -> painterResource(fallbackPhotoResId)
+        else -> null
+    }
+    val radius = with(LocalDensity.current) { 68.dp.toPx() }
+    val blur = remember(radius) { BlurEffect(radius, radius, TileMode.Clamp) }
+    Box(modifier.clipToBounds().background(MaterialTheme.colorScheme.surfaceContainerLowest)) {
+        if (painter != null) Image(painter, contentDescription = null,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = 1.15f
+                scaleY = 1.15f
+                renderEffect = blur
+            }, contentScale = ContentScale.Crop)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0.0f to Color.Black.copy(alpha = 0.40f),
+                        0.4f to Color.Black.copy(alpha = 0.20f),
+                        0.7f to Color.Black.copy(alpha = 0.48f),
+                        1.0f to Color.Black.copy(alpha = 0.65f)
+                    )
+                )
+        )
     }
 }

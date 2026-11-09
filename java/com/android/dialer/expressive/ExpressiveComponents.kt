@@ -86,6 +86,8 @@ enum class DialerSymbol(@DrawableRes val drawableRes: Int) {
     Swap(R.drawable.ic_ms_swap_calls_24),
     Video(R.drawable.ic_ms_videocam_24),
     Record(R.drawable.ic_ms_fiber_manual_record_24),
+    Waveform(R.drawable.ic_ms_waveform_24),
+    Summarize(R.drawable.ic_ms_summarize_24),
     Block(R.drawable.ic_ms_block_24),
     Settings(R.drawable.ic_ms_settings_24),
     Person(R.drawable.ic_ms_person_24)

@@ -197,6 +197,11 @@
     <string name="expressive_swap_sim">Switch SIM</string>
     <string name="expressive_swap">Swap</string>
     <string name="expressive_note_sent">Note sent</string>
+    <string name="expressive_summarise">Summarise</string>
+    <string name="expressive_summarise_prompt">Record call to generate AI summary</string>
+    <string name="expressive_more">More</string>
+    <string name="expressive_end">End</string>
+    <string name="expressive_dial_pad">Dial pad</string>
     <string name="expressive_decline">Decline</string>
     <string name="expressive_answer">Answer</string>
     <string name="expressive_incoming_swipe_accessibility">Swipe up to answer or down to decline</string>

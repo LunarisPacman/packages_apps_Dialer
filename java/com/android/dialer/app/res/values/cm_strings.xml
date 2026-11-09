@@ -54,6 +54,7 @@
     <string name="caller_screen_style_cookie">Cookie</string>
     <string name="caller_screen_style_hyperos">HyperOS Style</string>
     <string name="caller_screen_style_oneui9">One UI 9</string>
+    <string name="caller_screen_style_coloros17">ColorOS 17</string>
     <string name="rounded_call_screen_controls_title">Call screen control UI</string>
     <string name="rounded_call_screen_controls_summary">Use rounded controls and keypad with any caller screen style.</string>
 </resources>
