@@ -276,21 +276,37 @@ private fun PreferenceDialog(pref: Preference, dismiss: () -> Unit, changed: () 
                 }
                 is MultiSelectListPreference -> {
                     val context = LocalContext.current
-                    LazyColumn {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         items(pref.entries.size) { index ->
                             val value = pref.entryValues[index].toString()
-                            Row(Modifier.fillMaxWidth().clickable {
-                                if (value in values) {
-                                    values = values - value
-                                } else {
-                                    if (pref.key == "hidden_nav_items" && values.size >= 2) {
-                                        android.widget.Toast.makeText(context, R.string.hidden_nav_items_max_limit_toast, android.widget.Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        values = values + value
-                                    }
+                            val selected = value in values
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (selected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = .5f)
+                                    else Color.Transparent
+                            ) {
+                                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                                    .clickable {
+                                        if (selected) {
+                                            values = values - value
+                                        } else {
+                                            if (pref.key == "hidden_nav_items" && values.size >= 2) {
+                                                android.widget.Toast.makeText(context, R.string.hidden_nav_items_max_limit_toast, android.widget.Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                values = values + value
+                                            }
+                                        }
+                                    }.padding(horizontal = 12.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = selected, onClick = null)
+                                    Text(pref.entries[index].toString(), Modifier.weight(1f).padding(start = 16.dp),
+                                        style = if (selected) MaterialTheme.typography.bodyLargeEmphasized
+                                            else MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface)
                                 }
-                            }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(value in values, null); Text(pref.entries[index].toString(), Modifier.padding(start = 12.dp))
                             }
                         }
                     }
