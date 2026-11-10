@@ -18,8 +18,12 @@ package com.android.dialer.expressive
 
 import android.content.SharedPreferences
 import android.graphics.ImageDecoder
+import android.graphics.SurfaceTexture
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.AnimatedImageDrawable
+import android.media.MediaPlayer
+import android.view.Surface
+import android.view.TextureView
 import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -45,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.preference.PreferenceManager
+import com.android.dialer.common.LogUtil
 import java.io.File
 
 internal const val PREF_CUSTOM_CALL_BACKGROUND_SET = "custom_call_background_set"
@@ -82,6 +87,129 @@ internal fun rememberCustomCallBackgroundFile(): File? {
 @Composable
 internal fun CustomCallBackground(
     file: File,
+    type: CallBackgroundType = detectMediaType(file),
+    modifier: Modifier = Modifier,
+    applyBlur: Boolean = false,
+    blurRadius: Dp = 48.dp
+) {
+    Box(
+        modifier = modifier
+            .clipToBounds()
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+    ) {
+        when (type) {
+            CallBackgroundType.VIDEO -> {
+                VideoBackground(
+                    file = file,
+                    modifier = Modifier.fillMaxSize(),
+                    applyBlur = applyBlur,
+                    blurRadius = blurRadius
+                )
+            }
+            CallBackgroundType.GIF, CallBackgroundType.IMAGE -> {
+                ImageOrGifBackground(
+                    file = file,
+                    modifier = Modifier.fillMaxSize(),
+                    applyBlur = applyBlur,
+                    blurRadius = blurRadius
+                )
+            }
+        }
+
+        // Vignette gradient for legibility of header text and bottom controls
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.0f to Color.Black.copy(alpha = 0.35f),
+                        0.30f to Color.Transparent,
+                        0.70f to Color.Black.copy(alpha = 0.18f),
+                        1.0f to Color.Black.copy(alpha = 0.35f)
+                    )
+                )
+        )
+    }
+}
+
+@Composable
+internal fun VideoBackground(
+    file: File,
+    modifier: Modifier = Modifier,
+    applyBlur: Boolean = false,
+    blurRadius: Dp = 48.dp
+) {
+    val density = LocalDensity.current
+    val radiusPx = with(density) { blurRadius.toPx() }
+    val blurEffect = remember(radiusPx, applyBlur) {
+        if (applyBlur && radiusPx > 0f) BlurEffect(radiusPx, radiusPx, TileMode.Clamp) else null
+    }
+
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    DisposableEffect(file) {
+        onDispose {
+            mediaPlayer?.runCatching {
+                stop()
+                reset()
+                release()
+            }
+            mediaPlayer = null
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            TextureView(ctx).apply {
+                surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                        try {
+                            val player = MediaPlayer().apply {
+                                setSurface(Surface(surface))
+                                setDataSource(file.absolutePath)
+                                isLooping = true
+                                setVolume(0f, 0f)
+                                setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                                prepareAsync()
+                                setOnPreparedListener { mp ->
+                                    mp.start()
+                                }
+                            }
+                            mediaPlayer = player
+                        } catch (e: Exception) {
+                            LogUtil.e("VideoBackground", "Failed to start media player", e)
+                        }
+                    }
+
+                    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+
+                    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                        mediaPlayer?.runCatching {
+                            stop()
+                            reset()
+                            release()
+                        }
+                        mediaPlayer = null
+                        return true
+                    }
+
+                    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+                }
+            }
+        },
+        modifier = modifier.graphicsLayer {
+            if (blurEffect != null) {
+                renderEffect = blurEffect
+                scaleX = 1.08f
+                scaleY = 1.08f
+            }
+        }
+    )
+}
+
+@Composable
+internal fun ImageOrGifBackground(
+    file: File,
     modifier: Modifier = Modifier,
     applyBlur: Boolean = false,
     blurRadius: Dp = 48.dp
@@ -107,61 +235,38 @@ internal fun CustomCallBackground(
         }
     }
 
-    Box(
-        modifier = modifier
-            .clipToBounds()
-            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-    ) {
-        if (drawable != null) {
-            AndroidView(
-                factory = { ctx ->
-                    ImageView(ctx).apply {
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        setImageDrawable(drawable)
-                        if (drawable is Animatable) {
-                            if (drawable is AnimatedImageDrawable) {
-                                drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
-                            }
-                            drawable.start()
-                        }
-                    }
-                },
-                update = { view ->
-                    view.setImageDrawable(drawable)
+    if (drawable != null) {
+        AndroidView(
+            factory = { ctx ->
+                ImageView(ctx).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    setImageDrawable(drawable)
                     if (drawable is Animatable) {
                         if (drawable is AnimatedImageDrawable) {
                             drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
                         }
-                        if (!drawable.isRunning) {
-                            drawable.start()
-                        }
+                        drawable.start()
                     }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        if (blurEffect != null) {
-                            renderEffect = blurEffect
-                            scaleX = 1.08f
-                            scaleY = 1.08f
-                        }
+                }
+            },
+            update = { view ->
+                view.setImageDrawable(drawable)
+                if (drawable is Animatable) {
+                    if (drawable is AnimatedImageDrawable) {
+                        drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
                     }
-            )
-        }
-
-        // Vignette gradient for legibility of header text and bottom controls
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.35f),
-                        0.30f to Color.Transparent,
-                        0.70f to Color.Black.copy(alpha = 0.18f),
-                        1.0f to Color.Black.copy(alpha = 0.35f)
-                    )
-                )
+                    if (!drawable.isRunning) {
+                        drawable.start()
+                    }
+                }
+            },
+            modifier = modifier.graphicsLayer {
+                if (blurEffect != null) {
+                    renderEffect = blurEffect
+                    scaleX = 1.08f
+                    scaleY = 1.08f
+                }
+            }
         )
     }
 }
-

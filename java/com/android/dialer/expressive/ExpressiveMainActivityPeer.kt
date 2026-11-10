@@ -85,6 +85,20 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
             catch (_: Exception) { Toast.makeText(activity, R.string.expressive_photo_failed, Toast.LENGTH_LONG).show() }
         }
     }
+    private var backgroundNumber: String? = null
+    private val contactBackgroundStore by lazy { ContactBackgroundStore(activity) }
+    private val backgroundPicker = activity.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val number = backgroundNumber
+        backgroundNumber = null
+        if (uri != null && number != null) activity.lifecycleScope.launch {
+            try {
+                val mimeType = activity.contentResolver.getType(uri)
+                contactBackgroundStore.save(number, uri, mimeType)
+                Toast.makeText(activity, R.string.expressive_contact_background_set_success, Toast.LENGTH_SHORT).show()
+            } catch (error: CancellationException) { throw error }
+            catch (_: Exception) { Toast.makeText(activity, R.string.expressive_contact_background_set_failed, Toast.LENGTH_LONG).show() }
+        }
+    }
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) { refresh() }
     }
@@ -101,6 +115,7 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
             .getStringSet("hidden_nav_items", emptySet()) ?: emptySet()
         if (saveInstanceState != null) {
             photoNumber = saveInstanceState.getString("expressive.photo_number")
+            backgroundNumber = saveInstanceState.getString("expressive.background_number")
             tab = saveInstanceState.getInt("expressive.tab").coerceIn(0, 4)
             query = saveInstanceState.getString("expressive.query", "")
             digits = saveInstanceState.getString("expressive.digits", "")
@@ -163,6 +178,11 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
                         onEditContact = { person -> launch(Intent(Intent.ACTION_EDIT, person.uri)) },
                         onPhoto = { number -> photoNumber = number; photoPicker.launch("image/*") },
                         onRemovePhoto = { number -> mutate(action = { photos.remove(number) }) },
+                        onBackground = { number -> backgroundNumber = number; backgroundPicker.launch(arrayOf("image/*", "video/*")) },
+                        onRemoveBackground = { number -> activity.lifecycleScope.launch {
+                            contactBackgroundStore.remove(number)
+                            Toast.makeText(activity, R.string.expressive_contact_background_removed, Toast.LENGTH_SHORT).show()
+                        } },
                         onAutoRecording = { number, enabled, completed ->
                             val action: suspend () -> Unit = {
                                 withContext(Dispatchers.IO) {
@@ -290,6 +310,7 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
     }
     override fun onSaveInstanceState(bundle: Bundle) {
         bundle.putString("expressive.photo_number", photoNumber)
+        bundle.putString("expressive.background_number", backgroundNumber)
         bundle.putInt("expressive.tab", tab); bundle.putString("expressive.query", query)
         bundle.putString("expressive.digits", digits); bundle.putBoolean("expressive.keypad", keypad)
     }
