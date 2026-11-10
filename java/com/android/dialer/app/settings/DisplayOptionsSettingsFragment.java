@@ -49,14 +49,14 @@ public class DisplayOptionsSettingsFragment extends com.android.dialer.expressiv
   private SharedPreferences mPrefs;
   private ListPreference mCallerScreenStyle;
   private MultiSelectListPreference mHiddenNavItems;
-  private ActivityResultLauncher<String> mBackgroundPickerLauncher;
+  private ActivityResultLauncher<String[]> mBackgroundPickerLauncher;
   private Preference mCustomBackgroundPref;
 
   @Override
   public void onCreate(@Nullable Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     mBackgroundPickerLauncher = registerForActivityResult(
-        new ActivityResultContracts.GetContent(), this::onCustomBackgroundPicked);
+        new ActivityResultContracts.OpenDocument(), this::onCustomBackgroundPicked);
   }
 
   @Override
@@ -91,7 +91,7 @@ public class DisplayOptionsSettingsFragment extends com.android.dialer.expressiv
                   getString(R.string.custom_call_background_remove)
               }, (dialog, which) -> {
                 if (which == 0) {
-                  mBackgroundPickerLauncher.launch("image/*");
+                  mBackgroundPickerLauncher.launch(new String[] {"image/*", "video/*"});
                 } else if (which == 1) {
                   removeCustomBackground();
                 }
@@ -99,7 +99,7 @@ public class DisplayOptionsSettingsFragment extends com.android.dialer.expressiv
               .setNegativeButton(android.R.string.cancel, null)
               .show();
         } else {
-          mBackgroundPickerLauncher.launch("image/*");
+          mBackgroundPickerLauncher.launch(new String[] {"image/*", "video/*"});
         }
         return true;
       });

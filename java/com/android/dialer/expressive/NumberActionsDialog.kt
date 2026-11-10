@@ -46,7 +46,9 @@ internal fun NumberActionsDialog(
     onDismiss: () -> Unit, onCall: () -> Unit, onVideo: () -> Unit, onMessage: () -> Unit,
     onWhatsApp: () -> Unit,
     onFavorite: () -> Unit, onCopy: () -> Unit, onShare: () -> Unit, onEdit: () -> Unit,
-    onPhoto: () -> Unit, onRemovePhoto: () -> Unit, onRecordings: () -> Unit,
+    onPhoto: () -> Unit, onRemovePhoto: () -> Unit,
+    onBackground: () -> Unit = {}, onRemoveBackground: () -> Unit = {},
+    onRecordings: () -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -130,6 +132,12 @@ internal fun NumberActionsDialog(
                     else R.string.expressive_change_caller_photo), Modifier.fillMaxWidth(), onPhoto)
                 if (photoState.hasOverride) TextButton(onClick = onRemovePhoto, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text(stringResource(R.string.expressive_remove_caller_photo))
+                }
+                val contactBg = rememberContactBackground(number)
+                NumberAction(DialerSymbol.Video, stringResource(if (contactBg == null) R.string.expressive_set_contact_background
+                    else R.string.expressive_change_contact_background), Modifier.fillMaxWidth(), onBackground)
+                if (contactBg != null) TextButton(onClick = onRemoveBackground, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    Text(stringResource(R.string.expressive_remove_contact_background))
                 }
                 if (onDelete != null) TextButton(onClick = onDelete, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text(stringResource(R.string.expressive_delete_history), color = MaterialTheme.colorScheme.error)

@@ -62,6 +62,7 @@ fun DialerHome(
     onSettings: () -> Unit,
     onCopy: (String) -> Unit, onShare: (String) -> Unit, onEditContact: (Person) -> Unit,
     onPhoto: (String) -> Unit, onRemovePhoto: (String) -> Unit,
+    onBackground: (String) -> Unit = {}, onRemoveBackground: (String) -> Unit = {},
     onAutoRecording: (String, Boolean, (Boolean) -> Unit) -> Unit
 ) {
     val labels = listOf(
@@ -337,6 +338,7 @@ fun DialerHome(
             onFavorite = { onStar(updated) }, onCopy = { onCopy(updated.number); person = null },
             onShare = { person = null; onShare(updated.number) }, onEdit = { person = null; onEditContact(updated) },
             onPhoto = { onPhoto(updated.number) }, onRemovePhoto = { onRemovePhoto(updated.number) },
+            onBackground = { onBackground(updated.number) }, onRemoveBackground = { onRemoveBackground(updated.number) },
             onRecordings = { showRecordings(updated.name, updated.number) })
     }
     history?.let { selected -> NumberCallHistory(selected, data.calls, onDismiss = { history = null },
@@ -356,6 +358,7 @@ fun DialerHome(
             onCopy = { onCopy(selected.number); recent = null }, onShare = { recent = null; onShare(selected.number) },
             onEdit = { recent = null; if (contact != null) onEditContact(contact) else onAddContact(selected.number) },
             onPhoto = { onPhoto(selected.number) }, onRemovePhoto = { onRemovePhoto(selected.number) },
+            onBackground = { onBackground(selected.number) }, onRemoveBackground = { onRemoveBackground(selected.number) },
             onRecordings = { showRecordings(selected.name.ifBlank { selected.number }, selected.number) },
             onDelete = { delete = selectedGroup; recent = null })
         else AlertDialog(onDismissRequest = { recent = null }, title = { Text(selected.displayName()) },

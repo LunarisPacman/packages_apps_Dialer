@@ -252,4 +252,10 @@
     <string name="custom_call_background_set_success">Call screen background set</string>
     <string name="custom_call_background_set_failed">Couldn’t set call screen background</string>
     <string name="custom_call_background_removed">Call screen background removed</string>
+    <string name="expressive_set_contact_background">Set call background</string>
+    <string name="expressive_change_contact_background">Change call background</string>
+    <string name="expressive_remove_contact_background">Remove call background</string>
+    <string name="expressive_contact_background_set_success">Call background set for contact</string>
+    <string name="expressive_contact_background_set_failed">Couldn’t set call background</string>
+    <string name="expressive_contact_background_removed">Call background removed for contact</string>
 </resources>
