@@ -23,6 +23,7 @@ import android.net.Uri
 import android.os.*
 import android.provider.CallLog.Calls
 import com.android.dialer.voip.VoipCallHistory
+import com.android.dialer.voip.VoipContacts
 import kotlinx.coroutines.flow.collect
 import android.provider.ContactsContract
 import android.telecom.TelecomManager
@@ -176,6 +177,7 @@ class ExpressiveMainActivityPeer(private val activity: MainActivity) : MainActiv
                         }) },
                         onMessage = { number -> launch(Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))) },
                         onWhatsApp = { number -> openWhatsApp(number) },
+                        onWhatsAppCall = { number, video -> VoipContacts.callWhatsApp(activity, number, video) },
                         onCopy = { number -> activity.getSystemService(ClipboardManager::class.java)
                             .setPrimaryClip(ClipData.newPlainText(activity.getString(R.string.expressive_phone), number)) },
                         onShare = { number -> launch(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {

@@ -14,6 +14,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -133,6 +134,9 @@ class VoipNotificationListener : NotificationListenerService() {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+        if (call.avatar != null) {
+            builder.setLargeIcon(Icon.createWithBitmap(call.avatar))
+        }
         call.actions.forEach { builder.addAction(Notification.Action.Builder(
             null, it.title, it.intent).build()) }
         if (alert && manager.canUseFullScreenIntent()) builder.setFullScreenIntent(open, true)

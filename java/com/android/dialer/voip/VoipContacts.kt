@@ -9,13 +9,18 @@ package com.android.dialer.voip
 
 import android.app.Notification
 import android.app.Person
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
+import android.telecom.TelecomManager
+import android.telecom.VideoProfile
 import android.telephony.PhoneNumberUtils
 import android.telephony.TelephonyManager
+import android.util.Log
 import android.widget.Toast
 import com.android.dialer.R
 import com.android.dialer.expressive.RecentCall
@@ -132,8 +137,141 @@ internal object VoipContacts {
             .appendQueryParameter("phone", phone.removePrefix("+")).build()
         else Uri.Builder().scheme("tg").authority("resolve").appendQueryParameter("phone", phone).build()
         try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, uri).setPackage(packageName))
+            context.startActivity(Intent(Intent.ACTION_VIEW, uri).setPackage(packageName).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
         } catch (_: RuntimeException) { failed(context) }
+    }
+
+    fun call(context: Context, packageName: String, address: String, video: Boolean = false) {
+        if (!VoipCalls.enabled(context)) return
+        val phone = Uri.parse(address).takeIf { it.scheme == "tel" }?.schemeSpecificPart ?: address.trim()
+        val clean = PhoneNumberUtils.normalizeNumber(PhoneNumberUtils.extractNetworkPortion(phone)).removePrefix("+")
+        if (clean.isBlank()) {
+            failed(context)
+            return
+        }
+
+        if (packageName in whatsApp) {
+            callWhatsApp(context, clean, video, packageName)
+            return
+        }
+
+        if (packageName in telegram) {
+            val uri = Uri.Builder().scheme("tg").authority("resolve").appendQueryParameter("phone", clean).build()
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, uri).setPackage(packageName).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+            } catch (_: RuntimeException) { failed(context) }
+            return
+        }
+
+        VoipCalls.openApp(context, packageName)
+    }
+
+    fun callWhatsApp(context: Context, number: String, video: Boolean, packageName: String = "com.whatsapp"): Boolean {
+        val clean = PhoneNumberUtils.normalizeNumber(PhoneNumberUtils.extractNetworkPortion(number)).removePrefix("+")
+        if (clean.isBlank()) {
+            Toast.makeText(context, R.string.expressive_whatsapp_invalid_number, Toast.LENGTH_LONG).show()
+            return false
+        }
+
+        val packages = if (packageName == "com.whatsapp.w4b") listOf("com.whatsapp.w4b", "com.whatsapp")
+            else listOf("com.whatsapp", "com.whatsapp.w4b")
+
+        // 1. Try ContactsContract.Data
+        for (pkg in packages) {
+            val dataInfo = findWhatsAppCallDataId(context, clean, video, pkg)
+            if (dataInfo != null) {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, dataInfo.first), dataInfo.second)
+                        setPackage(pkg)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    return true
+                } catch (e: Exception) {
+                    Log.w("VoipContacts", "Failed to start WhatsApp call via Data URI", e)
+                }
+            }
+        }
+
+        // 2. Try TelecomManager placeCall with WhatsApp's PhoneAccountHandle
+        try {
+            val telecom = context.getSystemService(TelecomManager::class.java)
+            val handle = telecom?.callCapablePhoneAccounts?.firstOrNull {
+                it.componentName.packageName in packages
+            }
+            if (handle != null) {
+                val uri = Uri.fromParts("tel", "+$clean", null)
+                val extras = Bundle().apply {
+                    putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
+                    if (video) {
+                        putInt(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, VideoProfile.STATE_BIDIRECTIONAL)
+                    }
+                }
+                telecom.placeCall(uri, extras)
+                return true
+            }
+        } catch (e: Exception) {
+            Log.w("VoipContacts", "Failed to place call via TelecomManager", e)
+        }
+
+        // 3. Fallback: Open WhatsApp conversation directly
+        for (pkg in packages) {
+            try {
+                val uri = Uri.Builder().scheme("whatsapp").authority("send")
+                    .appendQueryParameter("phone", clean).build()
+                context.startActivity(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+                return true
+            } catch (_: Exception) {}
+        }
+
+        Toast.makeText(context, R.string.expressive_whatsapp_unavailable, Toast.LENGTH_LONG).show()
+        return false
+    }
+
+    private fun findWhatsAppCallDataId(context: Context, cleanNumber: String, video: Boolean, packageName: String): Pair<Long, String>? {
+        val isBusiness = packageName == "com.whatsapp.w4b"
+        val targetMime = when {
+            isBusiness && video -> "vnd.android.cursor.item/vnd.com.whatsapp.w4b.video.call"
+            isBusiness -> "vnd.android.cursor.item/vnd.com.whatsapp.w4b.voip.call"
+            video -> "vnd.android.cursor.item/vnd.com.whatsapp.video.call"
+            else -> "vnd.android.cursor.item/vnd.com.whatsapp.voip.call"
+        }
+
+        val projection = arrayOf(ContactsContract.Data._ID, ContactsContract.Data.DATA1)
+        val selection = "${ContactsContract.Data.MIMETYPE} = ?"
+        val selectionArgs = arrayOf(targetMime)
+
+        var result: Pair<Long, String>? = null
+        try {
+            context.contentResolver.query(
+                ContactsContract.Data.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.Data._ID)
+                val dataIndex = cursor.getColumnIndexOrThrow(ContactsContract.Data.DATA1)
+                while (cursor.moveToNext()) {
+                    val data1 = cursor.getString(dataIndex) ?: continue
+                    val dataNumber = data1.substringBefore("@").removePrefix("+")
+                    if (dataNumber == cleanNumber || cleanNumber.endsWith(dataNumber) || dataNumber.endsWith(cleanNumber)) {
+                        result = Pair(cursor.getLong(idIndex), targetMime)
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("VoipContacts", "Failed to query whatsapp call data id", e)
+        }
+        return result
     }
 
     fun failed(context: Context) {

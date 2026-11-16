@@ -92,3 +92,75 @@ internal fun rememberVoipContactOpener(): (RecentCall) -> Unit {
         }
     }
 }
+
+@Composable
+internal fun rememberVoipContactCaller(): (RecentCall, Boolean) -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var pendingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingPackage by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingVideo by rememberSaveable { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val id = pendingId
+        val packageName = pendingPackage
+        val video = pendingVideo
+        pendingId = null
+        pendingPackage = null
+        val uri = result.data?.data
+        if (result.resultCode == Activity.RESULT_OK && id != null && packageName != null &&
+            uri != null && VoipCalls.enabled(context)) {
+            busy = true
+            scope.launch {
+                try {
+                    val address = withContext(Dispatchers.IO) {
+                        VoipContacts.pickedContact(context, uri)?.takeIf {
+                            VoipCallHistory.saveContact(context, id, packageName, it)
+                        }
+                    }
+                    if (address != null) VoipContacts.call(context, packageName, address, video)
+                    else VoipContacts.failed(context)
+                } finally { busy = false }
+            }
+        }
+    }
+    return { call, video ->
+        val packageName = call.voipPackage ?: "com.whatsapp"
+        if (VoipCalls.enabled(context) && !busy && pendingId == null) {
+            busy = true
+            scope.launch {
+                try {
+                    val address = withContext(Dispatchers.IO) { VoipContacts.resolve(context, call) }
+                        ?: (if (call.number.isNotBlank()) "tel:${call.number}" else null)
+                    if (VoipCalls.enabled(context)) {
+                        if (address != null) {
+                            withContext(Dispatchers.IO) {
+                                VoipCallHistory.saveContact(context, call.id, packageName, address)
+                            }
+                            VoipContacts.call(context, packageName, address, video)
+                        } else {
+                            pendingId = call.id
+                            pendingPackage = packageName
+                            pendingVideo = video
+                            try {
+                                picker.launch(Intent(Intent.ACTION_PICK, Phone.CONTENT_URI))
+                                Toast.makeText(context, context.getString(R.string.voip_choose_contact,
+                                    call.name, call.voipAppName.orEmpty()), Toast.LENGTH_LONG).show()
+                            } catch (_: RuntimeException) {
+                                pendingId = null
+                                pendingPackage = null
+                                VoipContacts.failed(context)
+                            }
+                        }
+                    }
+                } finally { busy = false }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun rememberVoipContactMessenger(): (RecentCall) -> Unit {
+    val opener = rememberVoipContactOpener()
+    return { call -> opener(call) }
+}

@@ -26,13 +26,16 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.res.stringResource
@@ -50,6 +53,8 @@ internal fun RecentCallCard(
     group: RecentCallGroup, expanded: Boolean, onExpand: () -> Unit,
     onActions: () -> Unit, onHistory: () -> Unit, onRecordings: () -> Unit, onCall: () -> Unit,
     onRequestDelete: () -> Unit, onDelete: ((Boolean) -> Unit) -> Unit,
+    onWhatsAppCall: (RecentCall, Boolean) -> Unit = { _, _ -> },
+    onWhatsAppMessage: (RecentCall) -> Unit = {},
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(28.dp)
 ) {
@@ -61,6 +66,7 @@ internal fun RecentCallCard(
     val currentDelete by rememberUpdatedState(onDelete)
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val context = LocalContext.current
     val expandRotation by animateFloatAsState(if (expanded) 180f else 0f,
         MaterialTheme.motionScheme.fastSpatialSpec(), label = "call details")
     val expandedLabel = stringResource(if (expanded) R.string.expressive_collapse_calls else R.string.expressive_expand_calls)
@@ -117,7 +123,35 @@ internal fun RecentCallCard(
                     onClick = onExpand, onLongClickLabel = actionsLabel, onLongClick = onActions)
                     .padding(start = 14.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    ContactAvatar(name, number = if (call.callable) call.number else "")
+                    val resolvedNumber = if (call.number.isNotBlank()) call.number
+                        else (call.voipContactUri?.takeIf { it.startsWith("tel:") }?.removePrefix("tel:").orEmpty())
+                    Box(contentAlignment = Alignment.BottomEnd) {
+                        ContactAvatar(name, number = resolvedNumber)
+                        if (call.voipPackage != null) {
+                            val appIcon = remember(call.voipPackage) {
+                                try {
+                                    context.packageManager.getApplicationIcon(call.voipPackage).toBitmap().asImageBitmap()
+                                } catch (_: Throwable) { null }
+                            }
+                            if (appIcon != null) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 4.dp,
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier.size(18.dp).offset(x = 2.dp, y = 2.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(2.dp)) {
+                                        Image(
+                                            bitmap = appIcon,
+                                            contentDescription = call.voipAppName,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.titleMediumEmphasized,
@@ -154,11 +188,8 @@ internal fun RecentCallCard(
                     if (call.callable) IconButton(onClick = onCall, enabled = !deleting) {
                         Symbol(DialerSymbol.Phone, stringResource(R.string.expressive_call_person, name))
                     }
-                    else if (call.voipPackage != null) IconButton(onClick = onCall, enabled = !deleting) {
-                        if (VoipContacts.supportsContact(call.voipPackage)) {
-                            Symbol(DialerSymbol.Message, stringResource(R.string.voip_open_contact,
-                                name, call.voipAppName.orEmpty()))
-                        } else Symbol(DialerSymbol.Video, stringResource(R.string.voip_open_app, call.voipAppName.orEmpty()))
+                    else if (call.voipPackage != null) IconButton(onClick = { onWhatsAppCall(call, false) }, enabled = !deleting) {
+                        Symbol(DialerSymbol.Phone, stringResource(R.string.expressive_whatsapp_call))
                     }
                 }
                 AnimatedVisibility(expanded,
@@ -169,6 +200,36 @@ internal fun RecentCallCard(
                         if (group.calls.size > 5) Text(stringResource(R.string.expressive_latest_five),
                             Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium)
                         group.preview.forEach { RecentCallDetail(it, showDate = true) }
+                        if (call.voipPackage != null) {
+                            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilledTonalButton(
+                                    onClick = { onWhatsAppCall(call, false) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = CircleShape
+                                ) {
+                                    Symbol(DialerSymbol.Phone, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.expressive_whatsapp_call), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                FilledTonalButton(
+                                    onClick = { onWhatsAppCall(call, true) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = CircleShape
+                                ) {
+                                    Symbol(DialerSymbol.Video, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.expressive_whatsapp_video_call), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            TextButton(
+                                onClick = { onWhatsAppMessage(call) },
+                                enabled = !deleting,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Symbol(DialerSymbol.Message)
+                                Text(stringResource(R.string.expressive_whatsapp_message), Modifier.padding(start = 8.dp))
+                            }
+                        }
                         if (call.callable) TextButton(onClick = onHistory, enabled = !deleting,
                             modifier = Modifier.fillMaxWidth()) {
                             Symbol(DialerSymbol.History)

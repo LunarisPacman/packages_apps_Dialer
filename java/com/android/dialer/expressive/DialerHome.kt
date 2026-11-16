@@ -21,6 +21,8 @@ package com.android.dialer.expressive
 import android.provider.CallLog.Calls
 import android.content.Intent
 import com.android.dialer.voip.rememberVoipContactOpener
+import com.android.dialer.voip.rememberVoipContactCaller
+import com.android.dialer.voip.rememberVoipContactMessenger
 import com.android.dialer.voip.VoipRecordingsActivity
 import android.telephony.PhoneNumberUtils
 import android.text.format.DateUtils
@@ -63,6 +65,7 @@ fun DialerHome(
     onRemoveSpeedDial: (Int) -> Unit, onSpeedDial: (Int) -> Unit,
     onDelete: (List<RecentCall>, (Boolean) -> Unit) -> Unit,
     onAddContact: (String) -> Unit, onMessage: (String) -> Unit, onWhatsApp: (String) -> Unit,
+    onWhatsAppCall: ((String, Boolean) -> Unit)? = null,
     onSettings: () -> Unit,
     onCopy: (String) -> Unit, onShare: (String) -> Unit, onEditContact: (Person) -> Unit,
     onPhoto: (String) -> Unit, onRemovePhoto: (String) -> Unit,
@@ -71,6 +74,8 @@ fun DialerHome(
 ) {
     val context = LocalContext.current
     val openVoipContact = rememberVoipContactOpener()
+    val callVoipContact = rememberVoipContactCaller()
+    val messageVoipContact = rememberVoipContactMessenger()
     val labels = listOf(
         stringResource(R.string.expressive_recents),
         stringResource(R.string.expressive_speed_dial),
@@ -244,9 +249,16 @@ fun DialerHome(
                                             else showRecordings(call.name.ifBlank { call.number }, call.number)
                                         },
                                         onCall = {
-                                            if (call.voipPackage != null) openVoipContact(call)
+                                            if (call.voipPackage != null) callVoipContact(call, false)
                                             else onCall(call.number)
-                                        }, onRequestDelete = { delete = group },
+                                        },
+                                        onWhatsAppCall = { targetCall, video ->
+                                            callVoipContact(targetCall, video)
+                                        },
+                                        onWhatsAppMessage = { targetCall ->
+                                            messageVoipContact(targetCall)
+                                        },
+                                        onRequestDelete = { delete = group },
                                         onDelete = { completed -> onDelete(group.calls, completed) },
                                         shape = dialerGroupedShape(first, last),
                                         modifier = Modifier.animateItem(placementSpec = null))
@@ -350,6 +362,8 @@ fun DialerHome(
             onDismiss = { person = null }, onCall = { person = null; onCall(updated.number) },
             onVideo = { person = null; onVideo(updated.number) }, onMessage = { person = null; onMessage(updated.number) },
             onWhatsApp = { person = null; onWhatsApp(updated.number) },
+            onWhatsAppCall = { person = null; onWhatsAppCall?.invoke(updated.number, false) },
+            onWhatsAppVideo = { person = null; onWhatsAppCall?.invoke(updated.number, true) },
             onFavorite = { onStar(updated) }, onCopy = { onCopy(updated.number); person = null },
             onShare = { person = null; onShare(updated.number) }, onEdit = { person = null; onEditContact(updated) },
             onPhoto = { onPhoto(updated.number) }, onRemovePhoto = { onRemovePhoto(updated.number) },
@@ -365,15 +379,31 @@ fun DialerHome(
     recent?.let { selectedGroup ->
         val selected = selectedGroup.latest
         val contact = data.people.firstOrNull { PhoneNumberUtils.compare(it.number, selected.number) }
+        val resolvedNumber = if (selected.number.isNotBlank()) selected.number
+            else (selected.voipContactUri?.takeIf { it.startsWith("tel:") }?.removePrefix("tel:").orEmpty())
         if (selected.callable) NumberActionsDialog(selected.displayName(), selected.number, contact?.starred == true, contact != null,
             onDismiss = { recent = null }, onCall = { recent = null; onCall(selected.number) },
             onVideo = { recent = null; onVideo(selected.number) }, onMessage = { recent = null; onMessage(selected.number) },
             onWhatsApp = { recent = null; onWhatsApp(selected.number) },
+            onWhatsAppCall = { recent = null; onWhatsAppCall?.invoke(selected.number, false) },
+            onWhatsAppVideo = { recent = null; onWhatsAppCall?.invoke(selected.number, true) },
             onFavorite = { if (contact != null) onStar(contact) else { recent = null; onAddContact(selected.number) } },
             onCopy = { onCopy(selected.number); recent = null }, onShare = { recent = null; onShare(selected.number) },
             onEdit = { recent = null; if (contact != null) onEditContact(contact) else onAddContact(selected.number) },
             onPhoto = { onPhoto(selected.number) }, onRemovePhoto = { onRemovePhoto(selected.number) },
             onBackground = { onBackground(selected.number) }, onRemoveBackground = { onRemoveBackground(selected.number) },
+            onRecordings = { showRecordings(selected.name.ifBlank { selected.number }, selected.number) },
+            onDelete = { delete = selectedGroup; recent = null })
+        else if (selected.voipPackage != null) NumberActionsDialog(selected.displayName(), resolvedNumber.ifBlank { selected.name }, contact?.starred == true, contact != null,
+            onDismiss = { recent = null }, onCall = { recent = null; callVoipContact(selected, false) },
+            onVideo = { recent = null; callVoipContact(selected, true) }, onMessage = { recent = null; messageVoipContact(selected) },
+            onWhatsApp = { recent = null; messageVoipContact(selected) },
+            onWhatsAppCall = { recent = null; callVoipContact(selected, false) },
+            onWhatsAppVideo = { recent = null; callVoipContact(selected, true) },
+            onFavorite = { if (contact != null) onStar(contact) else if (resolvedNumber.isNotBlank()) { recent = null; onAddContact(resolvedNumber) } },
+            onCopy = { onCopy(resolvedNumber.ifBlank { selected.name }); recent = null }, onShare = { recent = null; onShare(resolvedNumber.ifBlank { selected.name }) },
+            onEdit = { recent = null; if (contact != null) onEditContact(contact) else if (resolvedNumber.isNotBlank()) onAddContact(resolvedNumber) },
+            onPhoto = { if (resolvedNumber.isNotBlank()) onPhoto(resolvedNumber) }, onRemovePhoto = { if (resolvedNumber.isNotBlank()) onRemovePhoto(resolvedNumber) },
             onRecordings = { showRecordings(selected.name.ifBlank { selected.number }, selected.number) },
             onDelete = { delete = selectedGroup; recent = null })
         else AlertDialog(onDismissRequest = { recent = null }, title = { Text(selected.displayName()) },

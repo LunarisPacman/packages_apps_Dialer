@@ -14,8 +14,13 @@ import android.app.Person
 import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Icon
 import android.os.Process
 import android.service.notification.StatusBarNotification
+import android.util.Log
 import android.widget.Toast
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +43,7 @@ internal data class VoipCall(
     val actions: List<VoipAction>,
     val contentIntent: PendingIntent?,
     val contactUri: String?,
+    val avatar: Bitmap? = null,
 )
 
 internal object VoipCalls {
@@ -119,12 +125,92 @@ internal object VoipCalls {
                 !(it.contactUri?.startsWith("tel:") == true && contactUri?.startsWith("tel:") == true &&
                     it.contactUri != contactUri)
         }
+        val avatar = extractPersonPhoto(context, sbn.packageName, notification) ?: previous?.avatar
+        if (avatar != null) {
+            com.android.dialer.expressive.CallerPhotoStore(context).saveVoipAvatar(caller, avatar)
+        }
         return VoipCall(sbn.key, previous?.token ?: UUID.randomUUID().toString(),
             sbn.packageName, sbn.uid, appName, caller.take(200), incoming,
             callType == Notification.CallStyle.CALL_TYPE_ONGOING, previous?.date ?: sbn.postTime,
             sbn.postTime, actions,
             notification.contentIntent,
             if (previous?.contactUri?.startsWith("tel:") == true) previous.contactUri
-            else contactUri ?: previous?.contactUri)
+            else contactUri ?: previous?.contactUri,
+            avatar)
+    }
+
+    fun extractPersonPhoto(context: Context, packageName: String, notification: Notification): Bitmap? {
+        val extras = notification.extras ?: return null
+
+        fun loadFromIcon(icon: Icon?): Bitmap? {
+            if (icon == null) return null
+            return try {
+                val pkgContext = try {
+                    context.createPackageContext(packageName, Context.CONTEXT_RESTRICTED)
+                } catch (_: Throwable) {
+                    context
+                }
+                val drawable = icon.loadDrawable(pkgContext) ?: icon.loadDrawable(context) ?: return null
+                if (drawable is BitmapDrawable && drawable.bitmap != null) {
+                    return drawable.bitmap
+                }
+                val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 256
+                val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 256
+                val bitmap = Bitmap.createBitmap(width.coerceIn(1, 1024), height.coerceIn(1, 1024), Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                bitmap
+            } catch (e: Throwable) {
+                Log.w("VoipCalls", "Could not load icon drawable", e)
+                null
+            }
+        }
+
+        try {
+            val person = extras.getParcelable(Notification.EXTRA_CALL_PERSON, Person::class.java)
+            loadFromIcon(person?.icon)?.let { return it }
+        } catch (_: Throwable) {}
+
+        try {
+            val people = extras.getParcelableArrayList(Notification.EXTRA_PEOPLE_LIST, Person::class.java)
+            people?.firstOrNull()?.icon?.let { icon ->
+                loadFromIcon(icon)?.let { return it }
+            }
+        } catch (_: Throwable) {}
+
+        try {
+            notification.getLargeIcon()?.let { loadFromIcon(it) }?.let { return it }
+        } catch (_: Throwable) {}
+
+        try {
+            val bmp = notification.largeIcon
+            if (bmp != null) return bmp
+        } catch (_: Throwable) {}
+
+        try {
+            val obj = extras.get(Notification.EXTRA_LARGE_ICON)
+            if (obj is Icon) loadFromIcon(obj)?.let { return it }
+            if (obj is Bitmap) return obj
+        } catch (_: Throwable) {}
+
+        try {
+            val obj = extras.get(Notification.EXTRA_PICTURE)
+            if (obj is Bitmap) return obj
+            if (obj is Icon) loadFromIcon(obj)?.let { return it }
+        } catch (_: Throwable) {}
+
+        try {
+            val obj = extras.get("android.largeIcon.big")
+            if (obj is Icon) loadFromIcon(obj)?.let { return it }
+            if (obj is Bitmap) return obj
+        } catch (_: Throwable) {}
+
+        try {
+            val person = extras.getParcelable("android.messagingUser", Person::class.java)
+            loadFromIcon(person?.icon)?.let { return it }
+        } catch (_: Throwable) {}
+
+        return null
     }
 }

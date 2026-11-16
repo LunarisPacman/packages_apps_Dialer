@@ -76,18 +76,20 @@ internal object VoipCallHistory {
                                 put("active", 1)
                                 put("last_seen", now)
                             }
+                            val resolvedUri = call.contactUri ?: VoipContacts.resolve(application,
+                                RecentCall(0, call.caller, "", 0, 0, 0, 0, voipPackage = call.packageName))
                             if (id == null) {
                                 values.put("date", call.date)
                                 values.put("incoming", if (call.incoming) 1 else 0)
-                                values.put("contact_uri", call.contactUri)
+                                values.put("contact_uri", resolvedUri)
                                 ids += db.insertOrThrow("calls", null, values)
                             } else {
                                 db.update("calls", values, "_id = ?", arrayOf(id.toString()))
-                                if (call.contactUri != null) db.update("calls", ContentValues().apply {
-                                    put("contact_uri", call.contactUri)
+                                if (resolvedUri != null) db.update("calls", ContentValues().apply {
+                                    put("contact_uri", resolvedUri)
                                 }, "_id = ? AND (contact_uri IS NULL OR " +
                                     "(contact_uri LIKE 'content:%' AND ? LIKE 'tel:%'))",
-                                    arrayOf(id.toString(), call.contactUri))
+                                    arrayOf(id.toString(), resolvedUri))
                                 ids += id
                             }
                         }
@@ -121,9 +123,14 @@ internal object VoipCallHistory {
                         while (cursor.moveToNext()) {
                             val packageName = cursor.getString(1)
                             val appName = VoipCalls.apps[packageName] ?: continue
-                            add(RecentCall(-cursor.getLong(0), cursor.getString(2), "", cursor.getLong(3),
+                            val caller = cursor.getString(2)
+                            val contactUri = cursor.getString(4)
+                            val number = if (contactUri?.startsWith("tel:") == true) contactUri.removePrefix("tel:")
+                                else VoipContacts.resolve(context, RecentCall(0, caller, "", 0, 0, 0, 0, voipPackage = packageName, voipContactUri = contactUri))
+                                    ?.takeIf { it.startsWith("tel:") }?.removePrefix("tel:").orEmpty()
+                            add(RecentCall(-cursor.getLong(0), caller, number, cursor.getLong(3),
                                 0, 0, Calls.PRESENTATION_ALLOWED, voipPackage = packageName, voipAppName = appName,
-                                voipContactUri = cursor.getString(4)))
+                                voipContactUri = contactUri))
                         }
                     }
                 }

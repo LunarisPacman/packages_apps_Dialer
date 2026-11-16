@@ -269,7 +269,7 @@ fun ExpressiveLoading(label: String) {
 
 @Composable
 fun ContactAvatar(name: String, modifier: Modifier = Modifier, large: Boolean = false, number: String = "") {
-    val photo = rememberCallerPhoto(number, if (large) 256 else 128)
+    val photo = rememberCallerPhoto(number, if (large) 256 else 128, name = name)
     val colors = MaterialTheme.colorScheme
     val (container, foreground) = when ((name.hashCode() and Int.MAX_VALUE) % 3) {
         0 -> colors.primaryContainer to colors.onPrimaryContainer

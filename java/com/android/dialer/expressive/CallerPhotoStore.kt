@@ -54,14 +54,43 @@ class CallerPhotoStore(context: Context) {
     internal val preferences = this.context.getSharedPreferences("caller_photos", Context.MODE_PRIVATE)
     private val directory get() = File(context.filesDir, "caller_photos")
 
-    internal fun key(number: String): String? {
+    internal fun key(number: String, name: String = ""): String? {
         val network = PhoneNumberUtils.normalizeNumber(PhoneNumberUtils.extractNetworkPortion(number))
-        if (network.isBlank()) return null
-        val country = context.getSystemService(TelephonyManager::class.java)?.simCountryIso
-            ?.takeIf { it.isNotBlank() } ?: Locale.getDefault().country
-        val canonical = PhoneNumberUtils.formatNumberToE164(network, country.uppercase(Locale.ROOT)) ?: network
-        return MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray())
+        if (network.isNotBlank()) {
+            val country = context.getSystemService(TelephonyManager::class.java)?.simCountryIso
+                ?.takeIf { it.isNotBlank() } ?: Locale.getDefault().country
+            val canonical = PhoneNumberUtils.formatNumberToE164(network, country.uppercase(Locale.ROOT)) ?: network
+            return MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+        }
+        if (name.isNotBlank()) {
+            return MessageDigest.getInstance("SHA-256").digest(("caller_name:" + name.trim()).toByteArray())
+                .joinToString("") { "%02x".format(it) }
+        }
+        return null
+    }
+
+    fun saveVoipAvatar(caller: String, bitmap: Bitmap) {
+        if (caller.isBlank()) return
+        try {
+            val dir = File(context.filesDir, "voip_avatars")
+            dir.mkdirs()
+            val hash = MessageDigest.getInstance("SHA-256").digest(("caller_name:" + caller.trim()).toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            val file = File(dir, "$hash.jpg")
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        } catch (_: Exception) {}
+    }
+
+    fun loadCachedVoipAvatar(caller: String): ImageBitmap? = readPhoto {
+        if (caller.isBlank()) return@readPhoto null
+        val dir = File(context.filesDir, "voip_avatars")
+        val hash = MessageDigest.getInstance("SHA-256").digest(("caller_name:" + caller.trim()).toByteArray())
             .joinToString("") { "%02x".format(it) }
+        val file = File(dir, "$hash.jpg")
+        if (file.exists()) {
+            BitmapFactory.decodeFile(file.path)?.asImageBitmap()
+        } else null
     }
 
     suspend fun save(number: String, uri: Uri) = withContext(Dispatchers.IO) {
@@ -98,10 +127,10 @@ class CallerPhotoStore(context: Context) {
     internal fun canReadContacts(): Boolean = ContextCompat.checkSelfPermission(context,
         Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
-    internal suspend fun load(number: String, key: String, maxSize: Int): CallerPhotoState = withContext(Dispatchers.IO) {
-        val name = preferences.getString(key, null)
-        val custom = name?.let { readPhoto {
-            val path = File(directory, name).path
+    internal suspend fun load(number: String, key: String, maxSize: Int, name: String = ""): CallerPhotoState = withContext(Dispatchers.IO) {
+        val customName = preferences.getString(key, null)
+        val custom = customName?.let { readPhoto {
+            val path = File(directory, customName).path
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, bounds)
             val options = BitmapFactory.Options().apply { inSampleSize = 1 }
@@ -109,30 +138,57 @@ class CallerPhotoStore(context: Context) {
                 options.inSampleSize *= 2
             BitmapFactory.decodeFile(path, options)?.asImageBitmap()
         } }
-        CallerPhotoState(custom ?: loadContactPhoto(number, maxSize), hasOverride = name != null)
+        CallerPhotoState(custom ?: loadContactPhoto(number, maxSize, name), hasOverride = customName != null)
     }
 
-    private fun loadContactPhoto(number: String, maxSize: Int): ImageBitmap? = readPhoto {
-        if (!canReadContacts()) return@readPhoto null
+    private fun loadContactPhoto(number: String, maxSize: Int, name: String = ""): ImageBitmap? = readPhoto {
+        if (!canReadContacts()) return@readPhoto loadCachedVoipAvatar(name)
         val network = PhoneNumberUtils.extractNetworkPortion(number)
-        if (network.isBlank()) return@readPhoto null
-        val lookup = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(network))
-        val columns = if (maxSize <= 256) arrayOf(
-            ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI, ContactsContract.PhoneLookup.PHOTO_URI)
-        else arrayOf(ContactsContract.PhoneLookup.PHOTO_URI, ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
-        context.contentResolver.query(lookup, columns, null, null, null)?.use { cursor ->
-            while (cursor.moveToNext()) {
-                for (index in columns.indices) {
-                    val uri = cursor.getString(index)?.takeIf { it.isNotBlank() } ?: continue
-                    val bitmap = readPhoto {
-                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri))) { decoder, info, _ ->
-                            val scale = minOf(1f, maxSize.toFloat() / maxOf(info.size.width, info.size.height))
-                            decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1),
-                                (info.size.height * scale).toInt().coerceAtLeast(1))
-                            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        }.asImageBitmap()
+        if (network.isNotBlank()) {
+            val lookup = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(network))
+            val columns = if (maxSize <= 256) arrayOf(
+                ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI, ContactsContract.PhoneLookup.PHOTO_URI)
+            else arrayOf(ContactsContract.PhoneLookup.PHOTO_URI, ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
+            context.contentResolver.query(lookup, columns, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    for (index in columns.indices) {
+                        val uri = cursor.getString(index)?.takeIf { it.isNotBlank() } ?: continue
+                        val bitmap = readPhoto {
+                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri))) { decoder, info, _ ->
+                                val scale = minOf(1f, maxSize.toFloat() / maxOf(info.size.width, info.size.height))
+                                decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1),
+                                    (info.size.height * scale).toInt().coerceAtLeast(1))
+                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                            }.asImageBitmap()
+                        }
+                        if (bitmap != null) return@readPhoto bitmap
                     }
-                    if (bitmap != null) return@readPhoto bitmap
+                }
+            }
+        }
+        // If not found by phone number, check cached VoIP avatar
+        loadCachedVoipAvatar(name)?.let { return@readPhoto it }
+
+        // Also check ContactsContract.Contacts by name if number was blank or had no photo
+        if (name.isNotBlank()) {
+            val filter = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(name.trim()))
+            val columns = if (maxSize <= 256) arrayOf(
+                ContactsContract.Contacts.PHOTO_THUMBNAIL_URI, ContactsContract.Contacts.PHOTO_URI)
+            else arrayOf(ContactsContract.Contacts.PHOTO_URI, ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
+            context.contentResolver.query(filter, columns, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    for (index in columns.indices) {
+                        val uri = cursor.getString(index)?.takeIf { it.isNotBlank() } ?: continue
+                        val bitmap = readPhoto {
+                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri))) { decoder, info, _ ->
+                                val scale = minOf(1f, maxSize.toFloat() / maxOf(info.size.width, info.size.height))
+                                decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1),
+                                    (info.size.height * scale).toInt().coerceAtLeast(1))
+                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                            }.asImageBitmap()
+                        }
+                        if (bitmap != null) return@readPhoto bitmap
+                    }
                 }
             }
         }
@@ -150,14 +206,14 @@ class CallerPhotoStore(context: Context) {
 }
 
 @Composable
-internal fun rememberCallerPhoto(number: String, maxSize: Int = 1600): ImageBitmap? =
-    rememberCallerPhotoState(number, maxSize).image
+internal fun rememberCallerPhoto(number: String, maxSize: Int = 1600, name: String = ""): ImageBitmap? =
+    rememberCallerPhotoState(number, maxSize, name).image
 
 @Composable
-internal fun rememberCallerPhotoState(number: String, maxSize: Int = 1600): CallerPhotoState {
+internal fun rememberCallerPhotoState(number: String, maxSize: Int = 1600, name: String = ""): CallerPhotoState {
     val context = LocalContext.current
     val store = remember(context) { CallerPhotoStore(context) }
-    val key = remember(store, number) { store.key(number) }
+    val key = remember(store, number, name) { store.key(number, name) }
     var revision by remember { mutableIntStateOf(0) }
     var contactsAllowed by remember(store) { mutableStateOf(store.canReadContacts()) }
     val lifecycleOwner = LocalView.current.findViewTreeLifecycleOwner()
@@ -189,8 +245,8 @@ internal fun rememberCallerPhotoState(number: String, maxSize: Int = 1600): Call
         onDispose { if (registered) context.contentResolver.unregisterContentObserver(observer) }
     }
     var photo by remember(store, key, maxSize, contactsAllowed) { mutableStateOf(CallerPhotoState()) }
-    LaunchedEffect(store, number, key, revision, maxSize, contactsAllowed) {
-        photo = key?.let { store.load(number, it, maxSize) } ?: CallerPhotoState()
+    LaunchedEffect(store, number, name, key, revision, maxSize, contactsAllowed) {
+        photo = key?.let { store.load(number, it, maxSize, name) } ?: CallerPhotoState()
     }
     return photo
 }
