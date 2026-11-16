@@ -12,18 +12,25 @@ package com.android.dialer.voip
 import android.Manifest
 import android.app.ActivityOptions
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.ContactsContract
 import android.text.format.DateUtils
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -42,6 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.android.dialer.R
@@ -78,6 +86,48 @@ class VoipCallActivity : FragmentActivity() {
         val permissionRequest = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()) { granted ->
             if (granted.isNotEmpty() && granted.values.all { it }) VoipRecordingService.start(this, token)
+        }
+
+        val audioManager = remember { getSystemService(AudioManager::class.java) }
+        var isMuted by remember { mutableStateOf(audioManager?.isMicrophoneMute == true) }
+        var isSpeakerOn by remember { mutableStateOf(isSpeakerActive(audioManager)) }
+
+        DisposableEffect(audioManager) {
+            if (audioManager == null) return@DisposableEffect onDispose {}
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    isMuted = audioManager.isMicrophoneMute
+                    isSpeakerOn = isSpeakerActive(audioManager)
+                }
+            }
+            val filter = IntentFilter().apply {
+                addAction(AudioManager.ACTION_MICROPHONE_MUTE_CHANGED)
+                addAction(AudioManager.ACTION_SPEAKERPHONE_STATE_CHANGED)
+                addAction(AudioManager.ACTION_HEADSET_PLUG)
+            }
+            ContextCompat.registerReceiver(this@VoipCallActivity, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+
+            val deviceListener = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val listener = AudioManager.OnCommunicationDeviceChangedListener { _ ->
+                    isSpeakerOn = isSpeakerActive(audioManager)
+                }
+                audioManager.addOnCommunicationDeviceChangedListener(
+                    ContextCompat.getMainExecutor(this@VoipCallActivity), listener)
+                listener
+            } else null
+
+            onDispose {
+                try { unregisterReceiver(receiver) } catch (_: Throwable) {}
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && deviceListener != null) {
+                    try { audioManager.removeOnCommunicationDeviceChangedListener(deviceListener) } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        LaunchedEffect(call == null) {
+            if (call == null) {
+                resetAudioState(audioManager)
+            }
         }
 
         var elapsed by remember { mutableLongStateOf(0L) }
@@ -348,11 +398,79 @@ class VoipCallActivity : FragmentActivity() {
                                     }
                                 } else {
                                     // Ongoing Call Controls: Expressive Control Tiles Grid + End Call Button
+
+                                    // Row 1: Primary Audio Controls (Mute & Speaker)
                                     Row(
                                         modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        // Tile 1: Open App
+                                        // Tile 1: Mute
+                                        ExpressiveTile(
+                                            onClick = {
+                                                val newMute = !isMuted
+                                                setMicMuted(audioManager, newMute)
+                                                isMuted = audioManager?.isMicrophoneMute == true
+                                                call.actions.firstOrNull {
+                                                    it.title.contains("mute", true) || it.title.contains("mic", true)
+                                                }?.let { sendAction(call.token, it) }
+                                            },
+                                            selected = isMuted,
+                                            modifier = Modifier.weight(1f).heightIn(min = 72.dp),
+                                            color = if (isMuted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            contentColor = if (isMuted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Symbol(if (isMuted) DialerSymbol.MicOff else DialerSymbol.Mic)
+                                                Text(
+                                                    stringResource(R.string.expressive_mute),
+                                                    style = if (isMuted) MaterialTheme.typography.labelMediumEmphasized else MaterialTheme.typography.labelMedium,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        // Tile 2: Speaker
+                                        ExpressiveTile(
+                                            onClick = {
+                                                val newSpeaker = !isSpeakerOn
+                                                setSpeakerActive(audioManager, newSpeaker)
+                                                isSpeakerOn = isSpeakerActive(audioManager)
+                                                call.actions.firstOrNull {
+                                                    it.title.contains("speaker", true)
+                                                }?.let { sendAction(call.token, it) }
+                                            },
+                                            selected = isSpeakerOn,
+                                            modifier = Modifier.weight(1f).heightIn(min = 72.dp),
+                                            color = if (isSpeakerOn) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            contentColor = if (isSpeakerOn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Symbol(DialerSymbol.Speaker)
+                                                Text(
+                                                    stringResource(R.string.expressive_speaker),
+                                                    style = if (isSpeakerOn) MaterialTheme.typography.labelMediumEmphasized else MaterialTheme.typography.labelMedium,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Row 2: Open App, Record Call, Recordings
+                                    Row(
+                                        modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        // Tile 3: Open App
                                         ExpressiveTile(
                                             onClick = { openApp(call) },
                                             modifier = Modifier.weight(1f).heightIn(min = 72.dp)
@@ -376,7 +494,7 @@ class VoipCallActivity : FragmentActivity() {
                                             }
                                         }
 
-                                        // Tile 2: Record Call (if recording enabled)
+                                        // Tile 4: Record Call (if recording enabled)
                                         if (recordingEnabled) {
                                             val isRecording = ownRecording?.busy == true
                                             ExpressiveTile(
@@ -417,7 +535,7 @@ class VoipCallActivity : FragmentActivity() {
                                             }
                                         }
 
-                                        // Tile 3: Recordings
+                                        // Tile 5: Recordings
                                         ExpressiveTile(
                                             onClick = {
                                                 startActivity(Intent(this@VoipCallActivity, VoipRecordingsActivity::class.java))
@@ -443,7 +561,9 @@ class VoipCallActivity : FragmentActivity() {
                                     // Additional app actions if any
                                     val extraActions = call.actions.filter { action ->
                                         !action.title.contains("end", true) && !action.title.contains("hang", true) &&
-                                        !action.title.contains("decline", true) && !action.title.contains("answer", true)
+                                        !action.title.contains("decline", true) && !action.title.contains("answer", true) &&
+                                        !action.title.contains("mute", true) && !action.title.contains("mic", true) &&
+                                        !action.title.contains("speaker", true)
                                     }
                                     if (extraActions.isNotEmpty()) {
                                         Row(
@@ -597,5 +717,84 @@ class VoipCallActivity : FragmentActivity() {
         val options = ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
             ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
         intent.send(this, 0, null, null, null, null, options.toBundle())
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        val token = intent.getStringExtra(VoipNotificationListener.EXTRA_TOKEN)
+        if (token == null || VoipCalls.find(token) == null) {
+            resetAudioState(getSystemService(AudioManager::class.java))
+        }
+    }
+
+    private fun isSpeakerActive(audioManager: AudioManager?): Boolean {
+        if (audioManager == null) return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.communicationDevice?.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER ||
+                audioManager.isSpeakerphoneOn
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn
+        }
+    }
+
+    private fun setSpeakerActive(audioManager: AudioManager?, on: Boolean) {
+        if (audioManager == null) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (on) {
+                    val speakerDevice = audioManager.availableCommunicationDevices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    }
+                    if (speakerDevice != null) {
+                        audioManager.setCommunicationDevice(speakerDevice)
+                    }
+                    @Suppress("DEPRECATION")
+                    audioManager.isSpeakerphoneOn = true
+                } else {
+                    audioManager.clearCommunicationDevice()
+                    val nonSpeaker = audioManager.availableCommunicationDevices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        it.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                        it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+                    }
+                    if (nonSpeaker != null) {
+                        audioManager.setCommunicationDevice(nonSpeaker)
+                    }
+                    @Suppress("DEPRECATION")
+                    audioManager.isSpeakerphoneOn = false
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.isSpeakerphoneOn = on
+            }
+        } catch (e: Throwable) {
+            Log.w("VoipCallActivity", "Failed to set speakerphone", e)
+        }
+    }
+
+    private fun setMicMuted(audioManager: AudioManager?, muted: Boolean) {
+        if (audioManager == null) return
+        try {
+            audioManager.isMicrophoneMute = muted
+        } catch (e: Throwable) {
+            Log.w("VoipCallActivity", "Failed to set microphone mute", e)
+        }
+    }
+
+    private fun resetAudioState(audioManager: AudioManager?) {
+        if (audioManager == null) return
+        try {
+            if (audioManager.isMicrophoneMute) {
+                audioManager.isMicrophoneMute = false
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audioManager.clearCommunicationDevice()
+            }
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = false
+        } catch (_: Throwable) {}
     }
 }
