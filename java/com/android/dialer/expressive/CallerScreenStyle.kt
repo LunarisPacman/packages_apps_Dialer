@@ -18,14 +18,17 @@ package com.android.dialer.expressive
 
 import android.app.WallpaperManager
 import android.content.SharedPreferences
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.BlurEffect
@@ -41,15 +44,31 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.DeviceFontFamilyName
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.preference.PreferenceManager
+import com.android.dialer.R
+
+internal val NdotFontFamily: FontFamily by lazy {
+    runCatching {
+        FontFamily(
+            Font(R.font.ntype82),
+            Font(DeviceFontFamilyName("ndot57")),
+            Font(DeviceFontFamilyName("ndot55")),
+            Font(DeviceFontFamilyName("NType 82"))
+        )
+    }.getOrDefault(FontFamily.Monospace)
+}
 
 internal const val CALLER_STYLE_FULLSCREEN = "fullscreen"
 internal const val CALLER_STYLE_COOKIE = "cookie"
 internal const val CALLER_STYLE_HYPEROS = "hyperos"
 internal const val CALLER_STYLE_ONEUI9 = "oneui9"
 internal const val CALLER_STYLE_COLOROS17 = "coloros17"
+internal const val CALLER_STYLE_NOS_REDESIGN = "nos_redesign"
 internal const val ROUNDED_CALL_CONTROLS_KEY = "rounded_call_screen_controls"
 
 object CallerScreenStylePreferences {
@@ -59,7 +78,9 @@ object CallerScreenStylePreferences {
     @JvmStatic
     fun readAndMigrate(preferences: SharedPreferences): String {
         val stored = preferences.getString(KEY, null)
-        if (stored == CALLER_STYLE_FULLSCREEN || stored == CALLER_STYLE_COOKIE || stored == CALLER_STYLE_HYPEROS || stored == CALLER_STYLE_ONEUI9 || stored == CALLER_STYLE_COLOROS17)
+        if (stored == CALLER_STYLE_FULLSCREEN || stored == CALLER_STYLE_COOKIE ||
+            stored == CALLER_STYLE_HYPEROS || stored == CALLER_STYLE_ONEUI9 ||
+            stored == CALLER_STYLE_COLOROS17 || stored == CALLER_STYLE_NOS_REDESIGN)
             return stored
         val style = if (preferences.getBoolean(LEGACY_KEY, true)) CALLER_STYLE_FULLSCREEN else CALLER_STYLE_COOKIE
         preferences.edit().putString(KEY, style).apply()
@@ -254,5 +275,79 @@ internal fun ColorOsCallerBackground(photo: ImageBitmap?, modifier: Modifier = M
                     )
                 )
         )
+    }
+}
+
+@Composable
+internal fun NosRedesignCallerBackground(
+    photo: ImageBitmap?,
+    modifier: Modifier = Modifier,
+    fallbackPhotoResId: Int = 0
+) {
+    val context = LocalContext.current
+    val wallpaper = remember(context) {
+        runCatching { WallpaperManager.getInstance(context).drawable?.toBitmap()?.asImageBitmap() }.getOrNull()
+    }
+    val painter = when {
+        wallpaper != null -> remember(wallpaper) { BitmapPainter(wallpaper) }
+        photo != null -> remember(photo) { BitmapPainter(photo) }
+        fallbackPhotoResId != 0 -> painterResource(fallbackPhotoResId)
+        else -> null
+    }
+    val radius = with(LocalDensity.current) { 72.dp.toPx() }
+    val blur = remember(radius) { BlurEffect(radius, radius, TileMode.Clamp) }
+    Box(modifier.clipToBounds().background(Color(0xFF0A0A0A))) {
+        if (painter != null) Image(
+            painter = painter,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = 1.25f
+                scaleY = 1.25f
+                renderEffect = blur
+                alpha = 0.55f
+            },
+            contentScale = ContentScale.Crop
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0.0f to Color.Black.copy(alpha = 0.85f),
+                        0.25f to Color.Black.copy(alpha = 0.55f),
+                        0.50f to Color.Black.copy(alpha = 0.35f),
+                        0.75f to Color.Black.copy(alpha = 0.65f),
+                        1.0f to Color.Black.copy(alpha = 0.95f)
+                    )
+                )
+        )
+    }
+}
+
+@Composable
+internal fun NosRedesignCallerAvatar(
+    photo: ImageBitmap?,
+    modifier: Modifier = Modifier,
+    fallbackPhotoResId: Int = 0
+) {
+    val painter = when {
+        photo != null -> remember(photo) { BitmapPainter(photo) }
+        fallbackPhotoResId != 0 -> painterResource(fallbackPhotoResId)
+        else -> null
+    }
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = Color(0xFF1E1E1E),
+        contentColor = Color.White,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+    ) {
+        if (painter != null) {
+            Image(painter, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Box(contentAlignment = Alignment.Center) {
+                Symbol(DialerSymbol.Person, modifier = Modifier.fillMaxSize(0.55f))
+            }
+        }
     }
 }

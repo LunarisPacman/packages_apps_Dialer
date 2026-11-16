@@ -46,9 +46,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
@@ -148,7 +151,8 @@ class VoipCallActivity : FragmentActivity() {
 
         val callerStyle = rememberCallerScreenStyle()
         val hyperOs = callerStyle == CALLER_STYLE_HYPEROS
-        val fullScreenCaller = callerStyle == CALLER_STYLE_FULLSCREEN || hyperOs
+        val nosRedesign = callerStyle == CALLER_STYLE_NOS_REDESIGN
+        val fullScreenCaller = callerStyle == CALLER_STYLE_FULLSCREEN || hyperOs || nosRedesign
 
         // 1. Resolve Contact Photo (DP): WhatsApp DP from notification -> ContactsContract -> CallerPhotoStore
         val number = remember(call?.contactUri) {
@@ -179,16 +183,19 @@ class VoipCallActivity : FragmentActivity() {
             drawableToBitmapSafe(appIconDrawable)?.asImageBitmap()
         }
 
-        val hyperOsForeground = if (hyperOs) rememberHyperOsForeground(photo, false)
+        val callerForeground = if (nosRedesign) Color.White
+            else if (hyperOs) rememberHyperOsForeground(photo, false)
             else MaterialTheme.colorScheme.onSurface
 
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
-            contentColor = if (hyperOs) hyperOsForeground else MaterialTheme.colorScheme.onSurface
+            contentColor = callerForeground
         ) {
             Box(Modifier.fillMaxSize()) {
-                if (hyperOs) {
+                if (nosRedesign) {
+                    NosRedesignCallerBackground(photo, Modifier.fillMaxSize())
+                } else if (hyperOs) {
                     HyperOsCallerBackground(photo, Modifier.fillMaxSize())
                 } else if (fullScreenCaller) {
                     CallerPortrait(photo, Modifier.fillMaxSize())
@@ -199,17 +206,17 @@ class VoipCallActivity : FragmentActivity() {
                 ) {
                     val availableHeight = maxHeight
                     val compactIdentity = availableHeight < 560.dp
-                    val hyperOsTopInset = if (hyperOs && !compactIdentity)
+                    val topInset = if ((hyperOs || nosRedesign) && !compactIdentity)
                         (availableHeight * .12f).coerceIn(0.dp, 80.dp) else 0.dp
                     val avatarSize = minOf(if (compactIdentity) 96.dp else 144.dp, maxWidth / 2.6f)
 
                     CallerContentLayout(
-                        viewportHeight = (availableHeight - 24.dp - hyperOsTopInset).coerceAtLeast(0.dp),
+                        viewportHeight = (availableHeight - 24.dp - topInset).coerceAtLeast(0.dp),
                         centerOffset = (-20).dp,
                         identityAtTop = fullScreenCaller || compactIdentity,
                         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
                             .padding(horizontal = 24.dp, vertical = 12.dp)
-                            .padding(top = hyperOsTopInset),
+                            .padding(top = topInset),
                         header = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -221,9 +228,10 @@ class VoipCallActivity : FragmentActivity() {
                                 }
                                 Surface(
                                     shape = CircleShape,
-                                    color = if (fullScreenCaller) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f)
+                                    color = if (nosRedesign) Color(0xFF1E1E1E).copy(alpha = 0.85f)
+                                           else if (fullScreenCaller) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f)
                                            else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
-                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                    contentColor = if (nosRedesign) Color.White else MaterialTheme.colorScheme.onSurface
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -251,82 +259,142 @@ class VoipCallActivity : FragmentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // Avatar (DP) with Badged App Icon
-                                Box(
-                                    contentAlignment = Alignment.BottomEnd,
-                                    modifier = Modifier.size(avatarSize)
-                                ) {
-                                    if (hyperOs) {
-                                        HyperOsCallerAvatar(photo, Modifier.fillMaxSize())
-                                    } else {
-                                        RoundedCallerAvatar(photo, Modifier.fillMaxSize())
-                                    }
+                                if (nosRedesign) {
+                                    // Caller Name at top in Serif font
+                                    Text(
+                                        text = call?.caller ?: stringResource(R.string.voip_call_ended),
+                                        style = if (compactIdentity) MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Normal)
+                                               else MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Normal, fontSize = 32.sp),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                        color = Color.White
+                                    )
 
-                                    // Small App Icon Badge
-                                    if (appIconBitmap != null) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.surface,
-                                            tonalElevation = 6.dp,
-                                            shadowElevation = 4.dp,
-                                            modifier = Modifier
-                                                .size(if (compactIdentity) 34.dp else 42.dp)
-                                                .offset(x = 4.dp, y = 4.dp)
-                                        ) {
-                                            Box(
-                                                contentAlignment = Alignment.Center,
-                                                modifier = Modifier.padding(5.dp)
+                                    Spacer(Modifier.height(if (compactIdentity) 16.dp else 36.dp))
+
+                                    // Avatar (DP) with Badged App Icon (Clean, no breathing effects)
+                                    Box(
+                                        contentAlignment = Alignment.BottomEnd,
+                                        modifier = Modifier.size(if (compactIdentity) 100.dp else 160.dp)
+                                    ) {
+                                        NosRedesignCallerAvatar(photo, Modifier.fillMaxSize())
+
+                                        // Small App Icon Badge
+                                        if (appIconBitmap != null) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = Color(0xFF1E1E1E),
+                                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                                modifier = Modifier
+                                                    .size(if (compactIdentity) 32.dp else 40.dp)
+                                                    .offset(x = 2.dp, y = 2.dp)
                                             ) {
-                                                Image(
-                                                    bitmap = appIconBitmap,
-                                                    contentDescription = call?.appName,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.padding(5.dp)
+                                                ) {
+                                                    Image(
+                                                        bitmap = appIconBitmap,
+                                                        contentDescription = call?.appName,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                Spacer(Modifier.height(if (compactIdentity) 14.dp else 22.dp))
-
-                                // Caller Name
-                                Text(
-                                    text = call?.caller ?: stringResource(R.string.voip_call_ended),
-                                    style = if (compactIdentity) MaterialTheme.typography.headlineSmallEmphasized
-                                           else MaterialTheme.typography.displaySmallEmphasized,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                                )
-
-                                Spacer(Modifier.height(12.dp))
-
-                                // Status Pill
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (ownRecording?.busy == true) MaterialTheme.colorScheme.errorContainer
-                                           else MaterialTheme.colorScheme.primary,
-                                    contentColor = if (ownRecording?.busy == true) MaterialTheme.colorScheme.onErrorContainer
-                                           else MaterialTheme.colorScheme.onPrimary
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    if (call == null || call.incoming) {
+                                        Spacer(Modifier.height(if (compactIdentity) 14.dp else 24.dp))
+                                        val statusText = if (call == null) stringResource(R.string.voip_call_ended) else stringResource(R.string.voip_incoming)
+                                        Text(
+                                            statusText,
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontFamily = NdotFontFamily,
+                                                fontSize = 20.sp,
+                                                letterSpacing = 2.5.sp
+                                            ),
+                                            color = Color.White.copy(alpha = 0.90f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                } else {
+                                    // Avatar (DP) with Badged App Icon
+                                    Box(
+                                        contentAlignment = Alignment.BottomEnd,
+                                        modifier = Modifier.size(avatarSize)
                                     ) {
-                                        if (ownRecording?.busy == true) {
-                                            Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.error, CircleShape))
-                                            Text(
-                                                stringResource(R.string.voip_recording_duration, DateUtils.formatElapsedTime(elapsed)),
-                                                style = MaterialTheme.typography.labelLargeEmphasized
-                                            )
+                                        if (hyperOs) {
+                                            HyperOsCallerAvatar(photo, Modifier.fillMaxSize())
                                         } else {
-                                            val statusText = when {
-                                                call == null -> stringResource(R.string.voip_call_ended)
-                                                call.incoming -> stringResource(R.string.voip_incoming)
-                                                callElapsed > 0 -> "${stringResource(R.string.voip_app_call)} · ${DateUtils.formatElapsedTime(callElapsed)}"
-                                                else -> stringResource(R.string.voip_app_call)
+                                            RoundedCallerAvatar(photo, Modifier.fillMaxSize())
+                                        }
+
+                                        // Small App Icon Badge
+                                        if (appIconBitmap != null) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.surface,
+                                                tonalElevation = 6.dp,
+                                                shadowElevation = 4.dp,
+                                                modifier = Modifier
+                                                    .size(if (compactIdentity) 34.dp else 42.dp)
+                                                    .offset(x = 4.dp, y = 4.dp)
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.padding(5.dp)
+                                                ) {
+                                                    Image(
+                                                        bitmap = appIconBitmap,
+                                                        contentDescription = call?.appName,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
                                             }
-                                            Text(statusText, style = MaterialTheme.typography.labelLargeEmphasized)
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(if (compactIdentity) 14.dp else 22.dp))
+
+                                    // Caller Name
+                                    Text(
+                                        text = call?.caller ?: stringResource(R.string.voip_call_ended),
+                                        style = if (compactIdentity) MaterialTheme.typography.headlineSmallEmphasized
+                                               else MaterialTheme.typography.displaySmallEmphasized,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                                    )
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    // Status Pill
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (ownRecording?.busy == true) MaterialTheme.colorScheme.errorContainer
+                                               else MaterialTheme.colorScheme.primary,
+                                        contentColor = if (ownRecording?.busy == true) MaterialTheme.colorScheme.onErrorContainer
+                                               else MaterialTheme.colorScheme.onPrimary
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (ownRecording?.busy == true) {
+                                                Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.error, CircleShape))
+                                                Text(
+                                                    stringResource(R.string.voip_recording_duration, DateUtils.formatElapsedTime(elapsed)),
+                                                    style = MaterialTheme.typography.labelLargeEmphasized
+                                                )
+                                            } else {
+                                                val statusText = when {
+                                                    call == null -> stringResource(R.string.voip_call_ended)
+                                                    call.incoming -> stringResource(R.string.voip_incoming)
+                                                    callElapsed > 0 -> "${stringResource(R.string.voip_app_call)} · ${DateUtils.formatElapsedTime(callElapsed)}"
+                                                    else -> stringResource(R.string.voip_app_call)
+                                                }
+                                                Text(statusText, style = MaterialTheme.typography.labelLargeEmphasized)
+                                            }
                                         }
                                     }
                                 }
@@ -395,6 +463,116 @@ class VoipCallActivity : FragmentActivity() {
                                             Spacer(Modifier.width(8.dp))
                                         }
                                         Text(stringResource(R.string.voip_open_app, call.appName))
+                                    }
+                                } else if (nosRedesign) {
+                                    val buttonSize = 66.dp
+                                    val buttonSpacing = 14.dp
+                                    val endButtonWidth = buttonSize * 2 + buttonSpacing // 146.dp
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(buttonSpacing),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        // Timer / duration in Nothing dot-matrix font right above buttons
+                                        val statusText = when {
+                                            call == null -> stringResource(R.string.voip_call_ended)
+                                            call.incoming -> stringResource(R.string.voip_incoming)
+                                            callElapsed > 0 -> DateUtils.formatElapsedTime(callElapsed)
+                                            else -> stringResource(R.string.voip_app_call)
+                                        }
+                                        Text(
+                                            statusText,
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontFamily = NdotFontFamily,
+                                                fontSize = 20.sp,
+                                                letterSpacing = 2.5.sp
+                                            ),
+                                            color = Color.White.copy(alpha = 0.92f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+
+                                        // Row 1: Open App, Record Call, Speaker (centered, 14.dp gap)
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            NosRedesignCallButton(
+                                                symbol = DialerSymbol.Phone,
+                                                label = stringResource(R.string.voip_open_app, call.appName),
+                                                onClick = { openApp(call) },
+                                                size = buttonSize
+                                            )
+                                            if (recordingEnabled) {
+                                                val isRecording = ownRecording?.busy == true
+                                                NosRedesignCallButton(
+                                                    symbol = if (isRecording) DialerSymbol.Stop else DialerSymbol.Record,
+                                                    label = stringResource(if (isRecording) R.string.voip_stop_recording else R.string.voip_start_recording),
+                                                    onClick = {
+                                                        if (isRecording) VoipRecordingService.stop(this@VoipCallActivity)
+                                                        else {
+                                                            val missing = arrayOf(
+                                                                Manifest.permission.RECORD_AUDIO,
+                                                                Manifest.permission.POST_NOTIFICATIONS
+                                                            ).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+                                                            if (missing.isEmpty()) VoipRecordingService.start(this@VoipCallActivity, token)
+                                                            else permissionRequest.launch(missing.toTypedArray())
+                                                        }
+                                                    },
+                                                    selected = isRecording,
+                                                    enabled = ownRecording?.saving != true && (isRecording || (!recording.busy && calls.size == 1)),
+                                                    size = buttonSize
+                                                )
+                                            }
+                                            NosRedesignCallButton(
+                                                symbol = DialerSymbol.Speaker,
+                                                label = stringResource(R.string.expressive_speaker),
+                                                onClick = {
+                                                    val newSpeaker = !isSpeakerOn
+                                                    setSpeakerActive(audioManager, newSpeaker)
+                                                    isSpeakerOn = isSpeakerActive(audioManager)
+                                                    call.actions.firstOrNull {
+                                                        it.title.contains("speaker", true)
+                                                    }?.let { sendAction(call.token, it) }
+                                                },
+                                                selected = isSpeakerOn,
+                                                size = buttonSize
+                                            )
+                                        }
+
+                                        // Row 2: Mute (circle), End Call (capsule)
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            NosRedesignCallButton(
+                                                symbol = if (isMuted) DialerSymbol.MicOff else DialerSymbol.Mic,
+                                                label = stringResource(R.string.expressive_mute),
+                                                onClick = {
+                                                    val newMute = !isMuted
+                                                    setMicMuted(audioManager, newMute)
+                                                    isMuted = audioManager?.isMicrophoneMute == true
+                                                    call.actions.firstOrNull {
+                                                        it.title.contains("mute", true) || it.title.contains("mic", true)
+                                                    }?.let { sendAction(call.token, it) }
+                                                },
+                                                selected = isMuted,
+                                                size = buttonSize
+                                            )
+                                            val endAction = call.actions.firstOrNull {
+                                                it.title.contains("end", true) || it.title.contains("hang", true) ||
+                                                it.title.contains("decline", true) || it.title.contains("cancel", true)
+                                            } ?: call.actions.firstOrNull()
+                                            NosRedesignEndCallButton(
+                                                onClick = {
+                                                    if (endAction != null) sendAction(call.token, endAction)
+                                                    else finish()
+                                                },
+                                                width = endButtonWidth,
+                                                height = buttonSize
+                                            )
+                                        }
                                     }
                                 } else {
                                     // Ongoing Call Controls: Expressive Control Tiles Grid + End Call Button
