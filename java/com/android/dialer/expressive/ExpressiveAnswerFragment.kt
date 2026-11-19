@@ -145,6 +145,24 @@ class ExpressiveAnswerFragment : ExpressiveCallFragment(), AnswerScreen {
         }
         val showReply = responses.isNotEmpty()
         val showVoicemail = voicemailEnabled && incomingCallStyle != INCOMING_CALL_STYLE_IOS
+        val callerStyle = rememberCallerScreenStyle()
+        val isNosRedesign = callerStyle == CALLER_STYLE_NOS_REDESIGN
+
+        val actionButtonColors = when {
+            isNosRedesign -> ButtonDefaults.filledTonalButtonColors(
+                containerColor = androidx.compose.ui.graphics.Color(0xFF242424).copy(alpha = 0.85f),
+                contentColor = androidx.compose.ui.graphics.Color.White
+            )
+            else -> ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        val actionButtonBorder = when {
+            isNosRedesign -> androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f))
+            else -> null
+        }
+
         if (showReply || showVoicemail) {
             Row(
                 modifier = Modifier.padding(top = 8.dp),
@@ -157,10 +175,8 @@ class ExpressiveAnswerFragment : ExpressiveCallFragment(), AnswerScreen {
                         enabled = actionsEnabled,
                         modifier = Modifier.height(48.dp),
                         shape = CircleShape,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
+                        border = actionButtonBorder,
+                        colors = actionButtonColors,
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)
                     ) {
                         Symbol(DialerSymbol.Message, modifier = Modifier.size(18.dp))
@@ -178,10 +194,8 @@ class ExpressiveAnswerFragment : ExpressiveCallFragment(), AnswerScreen {
                         enabled = actionsEnabled,
                         modifier = Modifier.height(48.dp),
                         shape = CircleShape,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
+                        border = actionButtonBorder,
+                        colors = actionButtonColors,
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)
                     ) {
                         Symbol(DialerSymbol.Voicemail, modifier = Modifier.size(18.dp))
@@ -198,6 +212,7 @@ class ExpressiveAnswerFragment : ExpressiveCallFragment(), AnswerScreen {
         if (incomingCallStyle == INCOMING_CALL_STYLE_IOS) IncomingCallButtons(
             enabled = actionsEnabled, onAnswer = ::answerCall, onReject = ::rejectCall,
             onVoicemail = if (voicemailEnabled) (::answerAsVoicemail) else null,
+            callerStyle = callerStyle,
             modifier = Modifier.padding(top = 28.dp, bottom = 24.dp))
         if (primaryInfoState.isSpam() || primaryInfoState.carrierSpamStatus() == com.android.dialer.spam.CarrierCallIdentity.SPAM_CONFIRMED ||
                 primaryInfoState.carrierSpamStatus() == com.android.dialer.spam.CarrierCallIdentity.SPAM_SUSPECTED) {

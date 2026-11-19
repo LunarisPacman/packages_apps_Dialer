@@ -52,6 +52,33 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
   private Runnable mAutoAnswerRunnable;
   private boolean mVoicemailSessionStarted = false;
 
+  public interface VoicemailStateListener {
+    void onVoicemailStateChanged();
+  }
+
+  private final java.util.List<VoicemailStateListener> mListeners =
+      new java.util.concurrent.CopyOnWriteArrayList<>();
+
+  public void addListener(VoicemailStateListener listener) {
+    if (listener != null && !mListeners.contains(listener)) {
+      mListeners.add(listener);
+    }
+  }
+
+  public void removeListener(VoicemailStateListener listener) {
+    if (listener != null) {
+      mListeners.remove(listener);
+    }
+  }
+
+  private void notifyListeners() {
+    mHandler.post(() -> {
+      for (VoicemailStateListener listener : mListeners) {
+        listener.onVoicemailStateChanged();
+      }
+    });
+  }
+
   private LocalVoicemailManager(@NonNull Context context) {
     mContext = context.getApplicationContext();
     mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
@@ -114,21 +141,27 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
     silenceMicrophone();
 
     if (call.getState() != DialerCallState.INCOMING
-        && call.getState() != DialerCallState.CALL_WAITING) {
-      Log.w(TAG, "Call is no longer in ringing state (" + call.getState() + "); aborting sendToVoicemail");
+        && call.getState() != DialerCallState.CALL_WAITING
+        && call.getState() != DialerCallState.ACTIVE) {
+      Log.w(TAG, "Call is not in a routable state (" + call.getState() + "); aborting sendToVoicemail");
       return;
     }
 
-    Log.i(TAG, "Silently answering incoming call for local voicemail recording: " + call.getId());
+    Log.i(TAG, "Routing call to local voicemail recording: " + call.getId());
     mActiveVoicemailCall = call;
     mRingingCall = null;
     mVoicemailSessionStarted = false;
+    notifyListeners();
 
-    // Answer silently without video
-    call.answer(VideoProfile.STATE_AUDIO_ONLY);
+    if (call.getState() == DialerCallState.ACTIVE) {
+      startVoicemailSessionForActiveCall(call);
+    } else {
+      // Answer silently without video
+      call.answer(VideoProfile.STATE_AUDIO_ONLY);
 
-    // Wait until call transitions to ACTIVE before starting audio greeting prompt
-    scheduleVoicemailSessionWhenActive(call);
+      // Wait until call transitions to ACTIVE before starting audio greeting prompt
+      scheduleVoicemailSessionWhenActive(call);
+    }
   }
 
   private void scheduleVoicemailSessionWhenActive(@NonNull DialerCall call) {
@@ -195,6 +228,7 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
                 mActiveVoicemailCall = null;
               }
               mVoicemailSessionStarted = false;
+              notifyListeners();
               LocalVoicemailAudioController.commitVoicemailToProvider(
                   mContext, callerNumber, durationSeconds, accountHandle, recordedFile);
             }
@@ -207,6 +241,7 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
                 mActiveVoicemailCall = null;
               }
               mVoicemailSessionStarted = false;
+              notifyListeners();
             }
           });
     }, 500);
@@ -218,6 +253,7 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
       mAudioController.stopSessionAndNotify();
       mActiveVoicemailCall = null;
       mVoicemailSessionStarted = false;
+      notifyListeners();
     }
     cancelPendingAutoAnswer();
     restoreMicrophone();
@@ -237,6 +273,7 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
       mAudioController.stopSessionAndNotify();
       mActiveVoicemailCall = null;
       mVoicemailSessionStarted = false;
+      notifyListeners();
     }
 
     restoreMicrophone();
@@ -289,6 +326,7 @@ public class LocalVoicemailManager implements CallList.Listener, AudioModeProvid
         mActiveVoicemailCall = null;
         mVoicemailSessionStarted = false;
         restoreMicrophone();
+        notifyListeners();
       }
     }
   }

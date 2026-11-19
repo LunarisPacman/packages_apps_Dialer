@@ -199,6 +199,41 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
         val photo = callerPhoto ?: contactPhoto
         val fallbackPhotoResId = primaryInfoState.fallbackPhotoResId()
         val glassBackdrop = rememberDialerGlassBackdrop()
+        val voicemailEnabled = remember(requireContext()) {
+            com.android.dialer.localvoicemail.LocalVoicemailPreferences.isEnabled(requireContext())
+        }
+        val isVoicemailActive by produceState(initialValue = false, primaryCallState.state()) {
+            val manager = com.android.dialer.localvoicemail.LocalVoicemailManager.getInstance()
+            if (manager != null) {
+                val update = {
+                    val call = com.android.incallui.call.CallList.getInstance().activeCall
+                        ?: com.android.incallui.call.CallList.getInstance().firstCall
+                    value = manager.isVoicemailActiveForCall(call)
+                }
+                val listener = com.android.dialer.localvoicemail.LocalVoicemailManager.VoicemailStateListener {
+                    update()
+                }
+                manager.addListener(listener)
+                update()
+                awaitDispose {
+                    manager.removeListener(listener)
+                }
+            }
+        }
+        val pickupVoicemail = {
+            val call = com.android.incallui.call.CallList.getInstance().activeCall
+                ?: com.android.incallui.call.CallList.getInstance().firstCall
+            if (call != null) {
+                com.android.dialer.localvoicemail.LocalVoicemailManager.getInstance()?.cancelVoicemailAndPickup(call)
+            }
+        }
+        val sendActiveToVoicemail = {
+            val call = com.android.incallui.call.CallList.getInstance().activeCall
+                ?: com.android.incallui.call.CallList.getInstance().firstCall
+            if (call != null) {
+                com.android.dialer.localvoicemail.LocalVoicemailManager.getInstance()?.sendToVoicemail(call)
+            }
+        }
         val callerForeground = when {
             customBackground != null -> Color.White
             oneUi9 || colorOs17 || nosRedesign -> Color.White
@@ -298,7 +333,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 NosRedesignCallerAvatar(photo, Modifier.size(if (compactIdentity) 96.dp else 160.dp), fallbackPhotoResId)
                                 if (answering || dialpad) {
                                     Spacer(Modifier.height(if (compactIdentity) 14.dp else 24.dp))
-                                    CallStatus(nosRedesign = true)
+                                    CallStatus(nosRedesign = true, isVoicemail = isVoicemailActive)
                                 }
                             } else {
                                 if (customBackground != null) {
@@ -317,7 +352,7 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                         color = LocalContentColor.current.copy(alpha = .76f))
                                 }
                                 Spacer(Modifier.height(if (hyperOs || oneUi9 || colorOs17 || customBackground != null) 10.dp else 16.dp))
-                                CallStatus(hyperOs || oneUi9 || colorOs17 || customBackground != null)
+                                CallStatus(hyperOs || oneUi9 || colorOs17 || customBackground != null, isVoicemail = isVoicemailActive)
                             }
                             val spamStatus = primaryInfoState.carrierSpamStatus()
                             if (primaryInfoState.isSpam() || spamStatus == CarrierCallIdentity.SPAM_CONFIRMED)
@@ -483,8 +518,10 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 endEnabled = endEnabled,
                                 glassBackdrop = glassBackdrop,
                                 statusContent = {
-                                    CallStatus(nosRedesign = true)
+                                    CallStatus(nosRedesign = true, isVoicemail = isVoicemailActive)
                                 },
+                                isVoicemailActive = isVoicemailActive,
+                                onPickupVoicemail = pickupVoicemail,
                                 isControlEnabled = ::isControlEnabled,
                                 clickControl = ::clickControl,
                                 endCall = ::endCall,
@@ -585,7 +622,8 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                         onActionClick = { actionId ->
                             clickControl(actionId)
                         },
-                        isControlEnabled = ::isControlEnabled
+                        isControlEnabled = ::isControlEnabled,
+                        onSendToVoicemail = if (voicemailEnabled && !isVoicemailActive) sendActiveToVoicemail else null
                     )
                 }
             }
@@ -635,16 +673,19 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
     @Composable
     protected open fun CallGestureContainer(content: @Composable () -> Unit) { content() }
     @Composable
-    private fun CallStatus(hyperOs: Boolean = false, nosRedesign: Boolean = false) {
+    private fun CallStatus(hyperOs: Boolean = false, nosRedesign: Boolean = false, isVoicemail: Boolean = false) {
         var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
         LaunchedEffect(primaryCallState.state(), primaryCallState.connectTimeMillis()) {
             while (primaryCallState.state() == DialerCallState.ACTIVE) { now = System.currentTimeMillis(); delay(1000) }
         }
-        val status = when (primaryCallState.state()) {
-            DialerCallState.ACTIVE -> DateUtils.formatElapsedTime(((now - primaryCallState.connectTimeMillis()) / 1000).coerceAtLeast(0))
-            DialerCallState.INCOMING, DialerCallState.CALL_WAITING -> stringResource(R.string.expressive_incoming_call)
-            DialerCallState.ONHOLD -> stringResource(R.string.expressive_on_hold)
-            DialerCallState.DISCONNECTED, DialerCallState.DISCONNECTING ->
+        val timer = DateUtils.formatElapsedTime(((now - primaryCallState.connectTimeMillis()) / 1000).coerceAtLeast(0))
+        val status = when {
+            isVoicemail -> if (nosRedesign) "VOICEMAIL $timer" else "${stringResource(R.string.expressive_voicemail)} • $timer"
+            primaryCallState.state() == DialerCallState.ACTIVE -> timer
+            primaryCallState.state() == DialerCallState.INCOMING || primaryCallState.state() == DialerCallState.CALL_WAITING ->
+                stringResource(R.string.expressive_incoming_call)
+            primaryCallState.state() == DialerCallState.ONHOLD -> stringResource(R.string.expressive_on_hold)
+            primaryCallState.state() == DialerCallState.DISCONNECTED || primaryCallState.state() == DialerCallState.DISCONNECTING ->
                 primaryCallState.disconnectCause().label?.toString() ?: stringResource(R.string.expressive_call_ended)
             else -> primaryCallState.customLabel() ?: stringResource(R.string.expressive_calling)
         }
@@ -662,9 +703,14 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                 color = LocalContentColor.current.copy(alpha = .76f))
             return
         }
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary) {
+        Surface(shape = CircleShape,
+            color = if (isVoicemail) Color(0xFF5E35B1) else MaterialTheme.colorScheme.primary,
+            contentColor = if (isVoicemail) Color.White else MaterialTheme.colorScheme.onPrimary) {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isVoicemail) {
+                    Symbol(DialerSymbol.Voicemail, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                }
                 Text(status, style = MaterialTheme.typography.labelLargeEmphasized)
             }
         }

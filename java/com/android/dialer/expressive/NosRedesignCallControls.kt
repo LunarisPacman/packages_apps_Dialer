@@ -235,6 +235,8 @@ internal fun NosRedesignCallControls(
     endEnabled: Boolean,
     glassBackdrop: DialerGlassBackdrop? = null,
     statusContent: (@Composable () -> Unit)? = null,
+    isVoicemailActive: Boolean = false,
+    onPickupVoicemail: () -> Unit = {},
     isControlEnabled: (Int) -> Boolean,
     clickControl: (Int) -> Unit,
     endCall: () -> Unit,
@@ -258,79 +260,113 @@ internal fun NosRedesignCallControls(
             Spacer(Modifier.height(8.dp))
         }
 
-        // Row 1: More, Hold, Record, Speaker (4 circular buttons, centered, 14.dp gap)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            NosRedesignCallButton(
-                symbol = DialerSymbol.More,
-                label = stringResource(R.string.expressive_more),
-                onClick = onMoreClick,
-                enabled = true,
-                selected = showMore,
-                size = buttonSize,
-                glassBackdrop = glassBackdrop
-            )
-            NosRedesignCallButton(
-                symbol = DialerSymbol.Pause,
-                label = stringResource(R.string.expressive_hold),
-                onClick = { clickControl(BUTTON_HOLD) },
-                enabled = isControlEnabled(BUTTON_HOLD),
-                selected = held,
-                size = buttonSize,
-                glassBackdrop = glassBackdrop
-            )
-            NosRedesignCallButton(
-                symbol = if (recording) DialerSymbol.Stop else DialerSymbol.Record,
-                label = stringResource(R.string.expressive_record),
-                onClick = { clickControl(BUTTON_RECORD_CALL) },
-                enabled = isControlEnabled(BUTTON_RECORD_CALL),
-                selected = recording,
-                size = buttonSize,
-                glassBackdrop = glassBackdrop
-            )
-            NosRedesignCallButton(
-                symbol = DialerSymbol.Speaker,
-                label = stringResource(R.string.expressive_speaker),
-                onClick = onSpeakerClick,
-                enabled = isControlEnabled(BUTTON_AUDIO),
-                selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
-                size = buttonSize,
-                glassBackdrop = glassBackdrop
-            )
-        }
+        if (isVoicemailActive) {
+            // Voicemail Screening active: Speaker, Take Over / Pick Up, End Call
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NosRedesignCallButton(
+                    symbol = DialerSymbol.Speaker,
+                    label = stringResource(R.string.expressive_speaker),
+                    onClick = onSpeakerClick,
+                    enabled = isControlEnabled(BUTTON_AUDIO),
+                    selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+                NosRedesignCallButton(
+                    symbol = DialerSymbol.Phone,
+                    label = stringResource(R.string.expressive_answer),
+                    onClick = onPickupVoicemail,
+                    enabled = true,
+                    selected = true,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+                NosRedesignEndCallButton(
+                    onClick = endCall,
+                    enabled = endEnabled,
+                    glassBackdrop = glassBackdrop,
+                    width = endButtonWidth,
+                    height = buttonSize
+                )
+            }
+        } else {
+            // Row 1: More, Hold, Record, Speaker (4 circular buttons, centered, 14.dp gap)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NosRedesignCallButton(
+                    symbol = DialerSymbol.More,
+                    label = stringResource(R.string.expressive_more),
+                    onClick = onMoreClick,
+                    enabled = true,
+                    selected = showMore,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+                NosRedesignCallButton(
+                    symbol = DialerSymbol.Pause,
+                    label = stringResource(R.string.expressive_hold),
+                    onClick = { clickControl(BUTTON_HOLD) },
+                    enabled = isControlEnabled(BUTTON_HOLD),
+                    selected = held,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+                NosRedesignCallButton(
+                    symbol = if (recording) DialerSymbol.Stop else DialerSymbol.Record,
+                    label = stringResource(R.string.expressive_record),
+                    onClick = { clickControl(BUTTON_RECORD_CALL) },
+                    enabled = isControlEnabled(BUTTON_RECORD_CALL),
+                    selected = recording,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+                NosRedesignCallButton(
+                    symbol = DialerSymbol.Speaker,
+                    label = stringResource(R.string.expressive_speaker),
+                    onClick = onSpeakerClick,
+                    enabled = isControlEnabled(BUTTON_AUDIO),
+                    selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+            }
 
-        // Row 2: Mute (circle), End Call (pill), Dial pad (circle)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            NosRedesignCallButton(
-                symbol = if (audio?.isMuted == true) DialerSymbol.MicOff else DialerSymbol.Mic,
-                label = stringResource(R.string.expressive_mute),
-                onClick = { clickControl(BUTTON_MUTE) },
-                enabled = isControlEnabled(BUTTON_MUTE),
-                selected = audio?.isMuted == true,
-                size = buttonSize,
-                glassBackdrop = glassBackdrop
-            )
-            NosRedesignEndCallButton(
-                onClick = endCall,
-                enabled = endEnabled,
-                glassBackdrop = glassBackdrop,
-                width = endButtonWidth,
-                height = buttonSize
-            )
-            NosRedesignCallButton(
-                symbol = DialerSymbol.Keypad,
-                label = stringResource(R.string.expressive_dial_pad),
-                onClick = onDialpadClick,
-                enabled = isControlEnabled(BUTTON_DIALPAD),
-                selected = dialpad,
-                size = buttonSize,
-                glassBackdrop = glassBackdrop
-            )
+            // Row 2: Mute (circle), End Call (pill), Dial pad (circle)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(buttonSpacing, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NosRedesignCallButton(
+                    symbol = if (audio?.isMuted == true) DialerSymbol.MicOff else DialerSymbol.Mic,
+                    label = stringResource(R.string.expressive_mute),
+                    onClick = { clickControl(BUTTON_MUTE) },
+                    enabled = isControlEnabled(BUTTON_MUTE),
+                    selected = audio?.isMuted == true,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+                NosRedesignEndCallButton(
+                    onClick = endCall,
+                    enabled = endEnabled,
+                    glassBackdrop = glassBackdrop,
+                    width = endButtonWidth,
+                    height = buttonSize
+                )
+                NosRedesignCallButton(
+                    symbol = DialerSymbol.Keypad,
+                    label = stringResource(R.string.expressive_dial_pad),
+                    onClick = onDialpadClick,
+                    enabled = isControlEnabled(BUTTON_DIALPAD),
+                    selected = dialpad,
+                    size = buttonSize,
+                    glassBackdrop = glassBackdrop
+                )
+            }
         }
     }
 }
@@ -339,7 +375,8 @@ internal fun NosRedesignCallControls(
 internal fun NosRedesignMoreSheet(
     onDismiss: () -> Unit,
     onActionClick: (Int) -> Unit,
-    isControlEnabled: (Int) -> Boolean
+    isControlEnabled: (Int) -> Boolean,
+    onSendToVoicemail: (() -> Unit)? = null
 ) {
     DialerModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -356,6 +393,41 @@ internal fun NosRedesignMoreSheet(
                 ),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+            if (onSendToVoicemail != null) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            onDismiss()
+                            onSendToVoicemail()
+                        },
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = CircleShape,
+                            color = Color(0xFF262626),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Symbol(DialerSymbol.Voicemail, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Text(
+                            stringResource(R.string.local_voicemail_send_to_voicemail),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
             val moreButtons = listOf(
                 BUTTON_ADD_CALL to (DialerSymbol.Add to R.string.expressive_add_call),
                 BUTTON_HOLD to (DialerSymbol.Pause to R.string.expressive_hold),

@@ -44,10 +44,21 @@ internal fun IncomingCallButtons(
     onAnswer: () -> Unit,
     onReject: () -> Unit,
     onVoicemail: (() -> Unit)? = null,
+    callerStyle: String = "",
     modifier: Modifier = Modifier
 ) {
+    val isNosRedesign = callerStyle == CALLER_STYLE_NOS_REDESIGN
     val buttonSize = if (onVoicemail != null) 72.dp else 80.dp
     val spacing = if (onVoicemail != null) 16.dp else 24.dp
+    val voicemailColor = when {
+        isNosRedesign -> Color(0xFF242424)
+        else -> VoicemailIndigo
+    }
+    val voicemailBorder = when {
+        isNosRedesign -> androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+        else -> null
+    }
+
     Row(modifier.widthIn(max = 380.dp).fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(spacing),
         verticalAlignment = Alignment.Top) {
@@ -61,10 +72,11 @@ internal fun IncomingCallButtons(
             modifier = Modifier.weight(1f))
         if (onVoicemail != null) {
             IncomingCallButton(
-                label = stringResource(R.string.local_voicemail_title),
+                label = stringResource(R.string.expressive_voicemail),
                 symbol = DialerSymbol.Voicemail,
-                color = VoicemailIndigo,
+                color = voicemailColor,
                 buttonSize = buttonSize,
+                border = voicemailBorder,
                 enabled = enabled,
                 onClick = onVoicemail,
                 modifier = Modifier.weight(1f))
@@ -87,6 +99,7 @@ private fun IncomingCallButton(
     color: Color,
     enabled: Boolean,
     buttonSize: androidx.compose.ui.unit.Dp = 80.dp,
+    border: androidx.compose.foundation.BorderStroke? = null,
     onClick: () -> Unit,
     modifier: Modifier
 ) {
@@ -104,6 +117,7 @@ private fun IncomingCallButton(
                 scaleY = scale
             },
             shape = CircleShape,
+            border = border,
             colors = ButtonDefaults.buttonColors(
                 containerColor = color,
                 contentColor = Color.White,
@@ -117,7 +131,7 @@ private fun IncomingCallButton(
         }
         Text(label, Modifier.padding(top = 12.dp).clearAndSetSemantics {},
             style = if (buttonSize < 80.dp) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else .5f),
+            color = LocalContentColor.current.copy(alpha = if (enabled) 1f else .5f),
             textAlign = TextAlign.Center)
     }
 }
