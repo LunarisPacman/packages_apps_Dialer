@@ -336,6 +336,8 @@ internal fun ColorOsCallControls(
     dialpad: Boolean,
     endEnabled: Boolean,
     glassBackdrop: DialerGlassBackdrop? = null,
+    isVoicemailActive: Boolean = false,
+    onPickupVoicemail: () -> Unit = {},
     isControlEnabled: (Int) -> Boolean,
     clickControl: (Int) -> Unit,
     endCall: () -> Unit,
@@ -349,74 +351,109 @@ internal fun ColorOsCallControls(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
-        // Row 1: Mute (left), Record (center), More (right)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            ColorOsCallButton(
-                symbol = if (audio?.isMuted == true) DialerSymbol.MicOff else DialerSymbol.Mic,
-                label = stringResource(R.string.expressive_mute),
-                onClick = { clickControl(BUTTON_MUTE) },
-                enabled = isControlEnabled(BUTTON_MUTE),
-                selected = audio?.isMuted == true,
-                glassBackdrop = glassBackdrop,
-                modifier = Modifier.weight(1f)
-            )
-            ColorOsCallButton(
-                symbol = DialerSymbol.Waveform,
-                label = stringResource(R.string.expressive_record),
-                onClick = { clickControl(BUTTON_RECORD_CALL) },
-                enabled = isControlEnabled(BUTTON_RECORD_CALL),
-                selected = recording,
-                glassBackdrop = glassBackdrop,
-                isRecording = recording,
-                modifier = Modifier.weight(1f)
-            )
-            ColorOsCallButton(
-                symbol = DialerSymbol.More,
-                label = stringResource(R.string.expressive_more),
-                onClick = onMoreClick,
-                enabled = true,
-                selected = showMore,
-                glassBackdrop = glassBackdrop,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        if (isVoicemailActive) {
+            // Voicemail Screening active: Speaker, End Call, Pick Up
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                ColorOsCallButton(
+                    symbol = DialerSymbol.Speaker,
+                    label = stringResource(R.string.expressive_speaker),
+                    onClick = onSpeakerClick,
+                    enabled = isControlEnabled(BUTTON_AUDIO),
+                    selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+                ColorOsEndCallButton(
+                    onClick = endCall,
+                    enabled = endEnabled,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+                ColorOsCallButton(
+                    symbol = DialerSymbol.Phone,
+                    label = stringResource(R.string.expressive_answer),
+                    onClick = onPickupVoicemail,
+                    enabled = true,
+                    selected = true,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        } else {
+            // Row 1: Mute (left), Record (center), More (right)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                ColorOsCallButton(
+                    symbol = if (audio?.isMuted == true) DialerSymbol.MicOff else DialerSymbol.Mic,
+                    label = stringResource(R.string.expressive_mute),
+                    onClick = { clickControl(BUTTON_MUTE) },
+                    enabled = isControlEnabled(BUTTON_MUTE),
+                    selected = audio?.isMuted == true,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+                ColorOsCallButton(
+                    symbol = DialerSymbol.Waveform,
+                    label = stringResource(R.string.expressive_record),
+                    onClick = { clickControl(BUTTON_RECORD_CALL) },
+                    enabled = isControlEnabled(BUTTON_RECORD_CALL),
+                    selected = recording,
+                    glassBackdrop = glassBackdrop,
+                    isRecording = recording,
+                    modifier = Modifier.weight(1f)
+                )
+                ColorOsCallButton(
+                    symbol = DialerSymbol.More,
+                    label = stringResource(R.string.expressive_more),
+                    onClick = onMoreClick,
+                    enabled = true,
+                    selected = showMore,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
-        // Row 2: Speaker (left), End (center capsule), Dial pad (right)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            ColorOsCallButton(
-                symbol = DialerSymbol.Speaker,
-                label = stringResource(R.string.expressive_speaker),
-                onClick = onSpeakerClick,
-                enabled = isControlEnabled(BUTTON_AUDIO),
-                selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
-                glassBackdrop = glassBackdrop,
-                modifier = Modifier.weight(1f)
-            )
-            ColorOsEndCallButton(
-                onClick = endCall,
-                enabled = endEnabled,
-                glassBackdrop = glassBackdrop,
-                modifier = Modifier.weight(1f)
-            )
-            ColorOsCallButton(
-                symbol = DialerSymbol.Keypad,
-                label = stringResource(R.string.expressive_dial_pad),
-                onClick = onDialpadClick,
-                enabled = isControlEnabled(BUTTON_DIALPAD),
-                selected = dialpad,
-                glassBackdrop = glassBackdrop,
-                modifier = Modifier.weight(1f)
-            )
+            // Row 2: Speaker (left), End (center capsule), Dial pad (right)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                ColorOsCallButton(
+                    symbol = DialerSymbol.Speaker,
+                    label = stringResource(R.string.expressive_speaker),
+                    onClick = onSpeakerClick,
+                    enabled = isControlEnabled(BUTTON_AUDIO),
+                    selected = audio?.route == CallAudioState.ROUTE_SPEAKER,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+                ColorOsEndCallButton(
+                    onClick = endCall,
+                    enabled = endEnabled,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+                ColorOsCallButton(
+                    symbol = DialerSymbol.Keypad,
+                    label = stringResource(R.string.expressive_dial_pad),
+                    onClick = onDialpadClick,
+                    enabled = isControlEnabled(BUTTON_DIALPAD),
+                    selected = dialpad,
+                    glassBackdrop = glassBackdrop,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -426,7 +463,8 @@ internal fun ColorOsMoreSheet(
     onDismiss: () -> Unit,
     onActionClick: (Int) -> Unit,
     isControlEnabled: (Int) -> Boolean,
-    audio: CallAudioState?
+    audio: CallAudioState?,
+    onSendToVoicemail: (() -> Unit)? = null
 ) {
     DialerModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -440,6 +478,32 @@ internal fun ColorOsMoreSheet(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+            if (onSendToVoicemail != null) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            onDismiss()
+                            onSendToVoicemail()
+                        },
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Symbol(DialerSymbol.Voicemail, modifier = Modifier.size(24.dp))
+                        Text(
+                            stringResource(R.string.local_voicemail_send_to_voicemail),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
             val moreButtons = listOf(
                 BUTTON_ADD_CALL to (DialerSymbol.Add to R.string.expressive_add_call),
                 BUTTON_HOLD to (DialerSymbol.Pause to R.string.expressive_hold),

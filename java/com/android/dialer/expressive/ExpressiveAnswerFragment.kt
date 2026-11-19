@@ -147,10 +147,20 @@ class ExpressiveAnswerFragment : ExpressiveCallFragment(), AnswerScreen {
         val showVoicemail = voicemailEnabled && incomingCallStyle != INCOMING_CALL_STYLE_IOS
         val callerStyle = rememberCallerScreenStyle()
         val isNosRedesign = callerStyle == CALLER_STYLE_NOS_REDESIGN
+        val isColorOs17 = callerStyle == CALLER_STYLE_COLOROS17
+        val isOneUi9 = callerStyle == CALLER_STYLE_ONEUI9
 
         val actionButtonColors = when {
             isNosRedesign -> ButtonDefaults.filledTonalButtonColors(
                 containerColor = androidx.compose.ui.graphics.Color(0xFF242424).copy(alpha = 0.85f),
+                contentColor = androidx.compose.ui.graphics.Color.White
+            )
+            isColorOs17 -> ButtonDefaults.filledTonalButtonColors(
+                containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                contentColor = androidx.compose.ui.graphics.Color.White
+            )
+            isOneUi9 -> ButtonDefaults.filledTonalButtonColors(
+                containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f),
                 contentColor = androidx.compose.ui.graphics.Color.White
             )
             else -> ButtonDefaults.filledTonalButtonColors(
@@ -160,6 +170,8 @@ class ExpressiveAnswerFragment : ExpressiveCallFragment(), AnswerScreen {
         }
         val actionButtonBorder = when {
             isNosRedesign -> androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f))
+            isColorOs17 -> androidx.compose.foundation.BorderStroke(1.1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f))
+            isOneUi9 -> androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.20f))
             else -> null
         }
 

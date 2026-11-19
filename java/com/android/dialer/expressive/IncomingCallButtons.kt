@@ -48,14 +48,17 @@ internal fun IncomingCallButtons(
     modifier: Modifier = Modifier
 ) {
     val isNosRedesign = callerStyle == CALLER_STYLE_NOS_REDESIGN
+    val isColorOs17 = callerStyle == CALLER_STYLE_COLOROS17
     val buttonSize = if (onVoicemail != null) 72.dp else 80.dp
     val spacing = if (onVoicemail != null) 16.dp else 24.dp
     val voicemailColor = when {
         isNosRedesign -> Color(0xFF242424)
+        isColorOs17 -> Color.White.copy(alpha = 0.22f)
         else -> VoicemailIndigo
     }
     val voicemailBorder = when {
         isNosRedesign -> androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+        isColorOs17 -> androidx.compose.foundation.BorderStroke(1.1.dp, Color.White.copy(alpha = 0.35f))
         else -> null
     }
 

@@ -555,10 +555,12 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                                 recording = recording,
                                 dialpad = dialpad,
                                 endEnabled = endEnabled,
+                                glassBackdrop = glassBackdrop,
+                                isVoicemailActive = isVoicemailActive,
+                                onPickupVoicemail = pickupVoicemail,
                                 isControlEnabled = ::isControlEnabled,
                                 clickControl = ::clickControl,
                                 endCall = ::endCall,
-                                glassBackdrop = glassBackdrop,
                                 onSpeakerClick = {
                                     buttonDelegate.toggleSpeakerphone()
                                 },
@@ -613,7 +615,8 @@ open class ExpressiveCallFragment : Fragment(), InCallScreen, InCallButtonUi, Au
                             clickControl(actionId)
                         },
                         isControlEnabled = ::isControlEnabled,
-                        audio = audio ?: buttonDelegate.currentAudioState
+                        audio = audio ?: buttonDelegate.currentAudioState,
+                        onSendToVoicemail = if (voicemailEnabled && !isVoicemailActive) sendActiveToVoicemail else null
                     )
                 }
                 if (showNosMoreSheet) {
